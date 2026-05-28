@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+
+    <AssemblyName>Betta.Abstractions</AssemblyName>
+    <RootNamespace>Betta</RootNamespace>
+
+    <!-- Reproducible build helps with deterministic NuGet output. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- NuGet package metadata -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>Betta.Abstractions</PackageId>
+    <Version>0.3.1</Version>
+    <Title>Betta.Abstractions</Title>
+    <Authors>Konrad Zaremba</Authors>
+    <Description>Public contract (attributes + marker interface) for authoring Betta plugins: zero-touch Grasshopper components from attributed C# service methods. Same silhouette, every fish is its own.</Description>
+    <PackageTags>grasshopper;rhino;dynamo;zerotouch;plugin;betta</PackageTags>
+    <RepositoryUrl>https://github.com/KonradZaremba/GH_AutoCreator</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/KonradZaremba/GH_AutoCreator</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts\</PackageOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\media\NBTabBettaMini_Cosmic.png" Pack="true" PackagePath="icon.png" Visible="false" />
+  </ItemGroup>
+
+</Project>

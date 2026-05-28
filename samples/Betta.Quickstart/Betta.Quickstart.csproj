@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <AssemblyName>Betta.Quickstart</AssemblyName>
+    <RootNamespace>Betta.Quickstart</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    This sample consumes Betta.Abstractions as a NuGet PACKAGE (not a project
+    reference) to exercise the published-library authoring flow. RestoreSources
+    adds the local pack output (../../artifacts) as a feed WITHOUT editing any
+    nuget.config — so it works straight after:
+
+        dotnet pack Betta.Abstractions/Betta.Abstractions.csproj -c Release
+        dotnet build samples/Betta.Quickstart/Betta.Quickstart.csproj
+
+    This project is intentionally NOT part of Betta/Betta.sln: the solution
+    builds Betta.Abstractions as a project, which would shadow the package.
+  -->
+  <PropertyGroup>
+    <RestoreSources>$(RestoreSources);https://api.nuget.org/v3/index.json;$(MSBuildThisFileDirectory)..\..\artifacts</RestoreSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Betta.Abstractions" Version="0.3.1" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PostBuildEvent>
+      xcopy /Q/Y "$(TargetDir)Betta.Quickstart.dll" "%25AppData%25\Grasshopper\Libraries\Betta\" &amp; exit /b 0
+    </PostBuildEvent>
+  </PropertyGroup>
+
+</Project>

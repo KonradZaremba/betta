@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <AssemblyName>Betta.Strings</AssemblyName>
+    <RootNamespace>Betta.Strings</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    Plugins link against Betta.Abstractions only (attributes + marker).
+    The runtime (Betta.gha) is loaded by Grasshopper, not shipped inside
+    the plugin DLL, so ExcludeAssets="runtime" keeps the plugin output lean.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Betta.Abstractions\Betta.Abstractions.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!--
+    Demonstrates the per-method custom-icon override. Concat opts out of the
+    default fish rotation by setting [GrasshopperMethod(IconResource=...)] —
+    IconProvider matches the resource by name suffix, so any PNG embedded with
+    a logical name ending in "concat_fish.png" will be picked up. The other
+    four methods on IStringCollection get the default Mini betta system.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\media\NBTabBetta_Forest.png"
+                      LogicalName="Betta.Strings.Resources.concat_fish.png" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PostBuildEvent>
+      xcopy /Q/Y "$(TargetDir)Betta.Strings.dll" "%25AppData%25\Grasshopper\Libraries\Betta\" &amp; exit /b 0
+    </PostBuildEvent>
+  </PropertyGroup>
+
+</Project>

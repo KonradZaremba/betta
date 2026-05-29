@@ -359,5 +359,6 @@ chat-history/
 .~lock.*#
 ~$*
 
-# Claude Code local config, skills, and agent worktrees — not tracked by this repo
-.claude/
+# Claude Code: keep local config + worktrees out of git, but SHIP skills/ for users
+.claude/*
+!.claude/skills/

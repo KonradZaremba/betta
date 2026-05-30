@@ -27,9 +27,9 @@
 
 ---
 
-Every Grasshopper component is the same ceremony. Subclass `GH_Component`. Hand-register each input and output. Invent a stable GUID. Draw a 24×24 icon. Marshal types in and out of `SolveInstance`. That's forty lines of plumbing before you write the one line you actually came for.
+Every Grasshopper component is the same process. Subclass `GH_Component`. Hand-register each input and output. Invent a stable GUID. Draw a 24×24 icon. Marshal types in and out of `SolveInstance`. That's forty lines of plumbing before you write the one line you actually came for.
 
-**Betta deletes the ceremony.** Decorate a plain C# method with an attribute — Betta reflects over it at load, builds the ports, assigns a deterministic GUID, picks an icon, and drops a real component on the canvas. It's the idea behind Dynamo's *ZeroTouch*, brought to Grasshopper: **put a DLL in, get nodes out.**
+**Write the one line. Betta writes the forty.** Decorate a plain C# method with an attribute — Betta reflects over it at load, builds the ports, assigns a deterministic GUID, picks an icon, and drops a real component on the canvas. It's the idea behind Dynamo's *ZeroTouch*, brought to Grasshopper: **put a DLL in, get nodes out.**
 
 ```csharp
 [GrasshopperCollection("Strings", "Text")]
@@ -77,6 +77,13 @@ With Betta, the method body **is** the component. Everything wrapped around it a
 Your services stay plain and framework-agnostic — no Grasshopper types leak in, so the same code is unit-testable with no Rhino in sight. Betta is just the thin shell that puts it on the canvas.
 
 And every component wears the same betta silhouette, so the family reads as one on the canvas — while each library keeps its own character: its naming, its ports, its geometry. Consistent enough to feel native, distinct enough to feel like itself.
+
+## AI Ready
+
+Betta can be used for AI-assisted authoring — the repo ships a Claude Code skill and a `CLAUDE.md` that hand a coding agent the contract: the attributes, the return-type → output mapping, the deploy path, the GUID-stability gotchas. Drop any agent session into this repo and it knows how to add a component without being told twice.
+
+Sure, an LLM can author a full `GH_Component` from scratch — and it usually does, after a few rounds of fixing the GUID, the param-access modes, and the icon plumbing. With Betta the agent only writes the function body; everything around it is generated deterministically at runtime, so refactors don't re-spend tokens on boilerplate and there's far less hallucinated code in the diff to review.
+
 
 ## Install
 
@@ -183,4 +190,6 @@ Tree inputs (`GH_Structure<T>`), hot-reload of *replaced* plugins, a canvas Load
 
 ## License
 
-[MPL-2.0](LICENSE). Commercial use and proprietary plugins built on top are fine — the file-level copyleft only applies if you modify and redistribute Betta's own source files.
+[MPL-2.0](LICENSE). **Plugins built on top are unaffected** — the copyleft is *file-level*, attaching only to source files that carry Betta's MPL header (everything in `Betta/` and `Betta.Abstractions/`). A plugin DLL that references `Betta.Abstractions` and runs against `Betta.gha` is its own work in its own files; ship it under any license you want — MIT, proprietary, paid, closed. Referencing, inheriting from, or extending Betta's types does **not** transfer MPL to your code.
+
+The only ask: if you modify a Betta source file and distribute the modified version, you publish those changes back under MPL. Your own files stay yours.

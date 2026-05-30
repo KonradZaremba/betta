@@ -215,7 +215,17 @@ namespace Betta
             {
                 var tupleValues = GetTupleValues(result);
                 for (int i = 0; i < tupleValues.Length && i < 8; i++)
-                    DA.SetData(i, tupleValues[i]);
+                {
+                    var value = tupleValues[i];
+                    // A tuple element typed List<T> maps to a list-access output
+                    // (ParamVector derives access from the type), so it must be
+                    // pushed with SetDataList — SetData would hand GH a List<> where
+                    // it expects one item and the convert fails ("Supplied type: List`1").
+                    if (value is IEnumerable elementList && value is not string)
+                        DA.SetDataList(i, elementList.Cast<object>().ToList());
+                    else
+                        DA.SetData(i, value);
+                }
                 return;
             }
 

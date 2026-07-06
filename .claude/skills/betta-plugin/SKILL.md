@@ -93,11 +93,28 @@ Same thing in interface-based style — move the attributes to `public interface
 |---|---|
 | Parameter `T` (e.g. `double`, `string`, `Point3d`) | One **item** input |
 | Parameter `List<T>` | One **list** input (access inferred — there is no `[Access]` attribute) |
+| Parameter `params T[]` / `T[]` | List input (zoom UI for individually-named slots is roadmap) |
+| Parameter `enum` | One integer input (wire a slider or panel; member name string parses too) |
+| Parameter `T` where `T` is an **opaque** type | One typed input via auto-generated `Param_BettaGoo<T>` |
+| Parameter `GH_Structure<TGoo>` | **Tree input** — the whole structure is handed to the method |
+| Parameter `CancellationToken` | Synthetic — bound to a per-solve CTS; cancels when the component re-solves |
+| Parameter `IProgress<T>` | Synthetic — `Report(value)` updates the component's `Message` |
+| Parameter with `[GrasshopperMenuState]` | **Right-click menu pick**, not a wired input; persisted in the .gh |
+| Parameter with `[GrasshopperSecret("service.key")]` | **Read from OS credential store**, not a wired input; missing values Warn + skip |
+| Parameter with `[GrasshopperTrigger]` on `bool` | No input pin — component adds a "Run" menu item and only fires when clicked |
+| Parameter with `[GrasshopperValueList(items…)]` | Regular input pin, but Betta auto-drops a wired `GH_ValueList` with those items when the component is placed |
+| Parameter with `[GrasshopperRange(min,max)]` / `[GrasshopperNotEmpty]` | Validated before invocation; failures Warn + skip |
+| Implicit input conversions | `Line`/`Arc`/`Polyline`/`Circle` → `Curve`; `Surface` → `Brep` |
+| Color / Guid / Interval / Transform / BoundingBox | Map to `Param_Colour`/`Param_Guid`/`Param_Interval`/`Param_Transform`/`Param_Box` |
+| Return / parameter `Bitmap` / `Image` | Single `Param_GenericObject` — no property explosion. For bake + PNG serialize return `Betta.Preview.BettaImage` (opaque). |
 | Return primitive / Rhino geometry | One output |
 | Return `List<T>` | One list output |
-| Return `Tuple<...>` or named tuple `(A, B, ...)` | One output **per element** (looked up by `Item1..Item8`) |
-| Return a custom class | One output **per public simple property** (output named by property) |
+| Return `Tuple<...>` or named tuple `(A, B, ...)` | One output **per element** (looked up by `Item1..Item8`, TRest walked for arity 8+) |
+| Return a **plain** custom class | One output **per public property** — includes simple types **and** opaque types / `List<opaque>` (v0.6+) |
+| Return an **opaque** custom class | **One typed output** via `Param_BettaGoo<T>` — no explosion |
+| Return `List<T>` of opaque `T` | One typed list output |
 | Return `Task<T>` / `ValueTask<T>` | **Async** — runtime kicks off the task, caches by input hash, calls `ExpireSolution(true)` on completion |
+| Method / class with `[GrasshopperRequiresEntitlement("k")]` | Inert annotation unless a plugin registers `IBettaLicenseGate` — then the component Warns + skips when the entitlement isn't granted |
 
 ### Naming outputs
 
@@ -120,6 +137,139 @@ Ship a PNG as an embedded resource and reference it by name suffix:
 double Foo(double x);
 ```
 The runtime matches `IconResource` against any embedded resource name **ending with** the string, so the namespace prefix isn't required. The PNG renders verbatim. Without `IconResource`, the component gets a betta silhouette picked deterministically from its GUID.
+
+## Opaque domain values (pass-through, no explosion)
+
+By default a method that returns a custom class explodes into one output per public property — convenient for value bags, terrible for pipelines. Mark a class **opaque** to keep it as a single typed wire that another Betta method can accept as a typed input:
+
+```csharp
+[GrasshopperOpaque]                  // option A — type attribute
+public class FloorplanGraph { ... }
+
+public class FloorplanGraph2 : IBettaValue { ... }   // option B — marker interface
+
+[GrasshopperMethod("Load")]
+[return: GrasshopperOpaque]          // option C — per-method override
+FloorplanGraphRaw Load(string path); // makes THIS return opaque
+                                     // even when the type isn't marked
+```
+
+Betta auto-generates a `GH_BettaGoo<T>` + `Param_BettaGoo<T>` pair at discovery time. The `Param_BettaGoo<T>` carries a deterministic `ComponentGuid` = MD5 of `typeof(T).FullName`, so saved `.gh` files survive across rebuilds and machine moves.
+
+A `List<T>` of opaque `T` flows as a single list-access output of the same typed param. No special syntax needed — Betta strips the list wrapper and reuses the registered factory.
+
+**When to mark opaque:** any domain object you want to pass through a pipeline (Load → Transform → Deconstruct). **When not to:** value-bag DTOs whose properties are the useful output.
+
+## Plugin DI services via `IBettaModule`
+
+A plugin can register its own DI services (geometry providers, options, configuration, …) for collection ctors to consume:
+
+```csharp
+public class MyPluginModule : IBettaModule
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddSingleton<IGeometryService, GeometryService>();
+        services.Configure<MyOptions>(opts => opts.Detail = 3);
+    }
+}
+
+public class MyCollection : IBettaCollection
+{
+    private readonly IGeometryService _geom;
+    public MyCollection(IGeometryService geom) { _geom = geom; }   // ctor-injected
+
+    [GrasshopperMethod("Build")] public Mesh Build(...) => _geom.Build(...);
+}
+```
+
+Betta discovers every `IBettaModule` implementor across own + loaded plugin assemblies and calls `ConfigureServices` on each (parameterless ctor required) **before** `BuildServiceProvider`. Modules are invoked best-effort — a throwing module is logged and skipped; other modules and the rest of Betta still come up.
+
+**Limitation:** runtime-dropped plugins (hot-added after Rhino started) do **not** get a module pass — the ServiceProvider is built once at startup, and rebuilding it would orphan resolved singletons. Plugins that need DI must be in the Betta folder when Rhino starts.
+
+## Per-instance menu state (right-click submenu, not wired input)
+
+Tag a parameter `[GrasshopperMenuState]` and the user picks the value once from the component's right-click menu. The choice persists with the .gh. v0.5 ships UI for `enum` (sub-menu of all members) and `bool` (toggle); other types accept the persisted value but show no editor yet.
+
+```csharp
+[GrasshopperMethod("Render")]
+Bitmap Render(
+    [GrasshopperParameter("Quality"), GrasshopperMenuState] Quality q,
+    [GrasshopperParameter("Scene")] string scene);
+
+public enum Quality { Draft, Final }
+```
+
+## Async essentials (CancellationToken, IProgress)
+
+Methods returning `Task<T>` can take a `CancellationToken` parameter — the runtime synthesizes one per solve and cancels the previous when the component re-solves, so stale work quits cleanly:
+
+```csharp
+[GrasshopperMethod("Slow Sum")]
+async Task<double> SumAsync(List<double> xs, CancellationToken ct) { ... }
+```
+
+`IProgress<int>` / `IProgress<string>` parameters become a sink that updates the component's `Message` tag — gives users a "computing 42%" indicator for free.
+
+## Built-in diagnostics
+
+- **Betta Inspector** component (toolbar: Betta / Inspector) emits one line per registered descriptor: category, name, method signature, GUID, source DLL, capability flags.
+- **`Betta_Status` Rhino command** writes the same to the Rhino command line — useful when GH isn't open.
+- **`betta-docs` dotnet tool** (`Betta.Docs`) walks loaded plugin DLLs and emits markdown documentation: one .md per (Category, SubCategory). Install with `dotnet tool install --global Betta.Docs`.
+
+## Tree inputs and outputs
+
+`GH_Structure<TGoo>` parameters and returns flow as trees — the method body sees the whole structure intact rather than per-iteration items:
+
+```csharp
+[GrasshopperMethod("Batch From Tree")]
+List<Graph> BatchFromTree(
+    [GrasshopperParameter("Seeds")] GH_Structure<GH_Number> seeds,
+    [GrasshopperParameter("Kind")] GraphKind kind);
+```
+
+Item/list inputs in the same method continue to iterate normally; trees co-exist with both.
+
+## Param validation
+
+Gate parameter values before the method body runs:
+
+| Attribute | Behavior |
+|---|---|
+| `[GrasshopperRange(min, max)]` | Numeric range; out-of-range surfaces a Warning and skips invocation. |
+| `[GrasshopperNotEmpty]` | Rejects null/whitespace strings and empty collections. |
+| `[GrasshopperValidation(typeof(MyValidator))]` | Custom rule — `IBettaValidator.Validate(value)` returns null on success or the warning message on failure. |
+
+The component continues solving the next branch — only the offending invocation is skipped.
+
+## Opt-ins for opaque types (recap)
+
+| Marker / interface | Effect |
+|---|---|
+| `[GrasshopperOpaque]` or `IBettaValue` | Pass through as a single typed wire. |
+| `IBettaPreview` (Betta.Preview pkg) | Viewport draw forwarded by the wrapping component. |
+| `IBettaBakeable` (Betta.Preview pkg) | Right-click → Bake adds geometry to the active Rhino doc. |
+| `IBettaDefault` | Unwired opaque inputs get a fresh `new T()` instead of `null`. |
+| `IBettaSerializable` | Round-trip the value through `.gh` save/reload (bytes-based). |
+
+## Viewport preview (`Betta.Preview`)
+
+Opaque domain objects can opt into Rhino viewport drawing by implementing `IBettaPreview` (from the `Betta.Preview` package — add the package reference only if you need preview):
+
+```csharp
+using Betta.Preview;
+using Rhino.Geometry;
+using Grasshopper.Kernel;
+
+public class Graph : IBettaValue, IBettaPreview
+{
+    public BoundingBox ClippingBox => /* union of geometry */ ;
+    public void DrawWires(IGH_PreviewArgs args)  => /* args.Display.Draw* */ ;
+    public void DrawMeshes(IGH_PreviewArgs args) => /* args.Display.Draw* */ ;
+}
+```
+
+Betta detects `IBettaPreview` by interface-name string (so the Betta runtime stays free of a hard `Betta.Preview` reference) and the wrapping component automatically advertises `IsPreviewCapable`, sums `ClippingBox`, and forwards Draw calls via reflection. Caching is per-solve and zero-overhead when no return type implements `IBettaPreview`.
 
 ## GUID & save/reload stability
 

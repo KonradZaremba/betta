@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Konrad Zaremba",
+  "classifications": [ "Grasshopper", "Rhino", "Plugin", "Betta" ],
+  "name": "Betta plugin — opaque domain pipeline",
+  "description": "A Betta plugin demonstrating opaque domain values: a typed Graph object that flows as a single wire through a Load → Deconstruct pipeline.",
+  "identity": "Betta.Templates.Opaque",
+  "shortName": "bettaplugin-opaque",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "MyBettaPlugin",
+  "preferNameDirectory": true,
+  "symbols": {
+    "BettaAbstractionsVersion": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "0.4.0",
+      "replaces": "BETTA_ABSTRACTIONS_VERSION"
+    },
+    "Category": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "MyPack",
+      "replaces": "MY_BETTA_CATEGORY"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+
+    <AssemblyName>Betta.Preview</AssemblyName>
+    <RootNamespace>Betta.Preview</RootNamespace>
+    <Deterministic>true</Deterministic>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- NuGet package metadata -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>Betta.Preview</PackageId>
+    <Version>0.6.0</Version>
+    <Title>Betta.Preview</Title>
+    <Authors>Konrad Zaremba</Authors>
+    <Description>Optional preview hook for Betta opaque types — implement IBettaPreview on your domain type and Betta draws it in the Rhino viewport without a hand-written GH_Component / GH_Goo.</Description>
+    <PackageTags>grasshopper;rhino;dynamo;zerotouch;plugin;betta;preview</PackageTags>
+    <RepositoryUrl>https://github.com/KonradZaremba/betta</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/KonradZaremba/betta</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts\</PackageOutputPath>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Betta.Abstractions\Betta.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grasshopper" Version="[8.0,8.27)" IncludeAssets="compile;build" />
+    <!-- BettaImage wraps System.Drawing.Bitmap; Grasshopper 8's Bitmap type
+         forwards to System.Drawing.Common, so we need a direct reference to
+         compile against it. -->
+    <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+  </ItemGroup>
+
+  <!-- Deploy as a sibling of plugin DLLs so PluginLoader.ResolveSiblingDependency
+       can find it when a consumer (sample or external plugin) references
+       Betta.Preview compile-only. -->
+  <PropertyGroup>
+    <PostBuildEvent>
+      xcopy /Q/Y "$(TargetDir)Betta.Preview.dll" "%AppData%\Grasshopper\Libraries\Betta\" &amp; exit /b 0
+    </PostBuildEvent>
+  </PropertyGroup>
+
+</Project>

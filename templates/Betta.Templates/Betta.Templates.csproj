@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Template package — packs three project templates so users can scaffold
+       a Betta plugin in one shot:
+         dotnet new install Betta.Templates::0.4.0
+         dotnet new bettaplugin-basic -n MyPlugin
+         dotnet new bettaplugin-opaque -n MyPlugin
+         dotnet new bettaplugin-opaque-preview -n MyPlugin
+  -->
+
+  <PropertyGroup>
+    <PackageId>Betta.Templates</PackageId>
+    <Version>0.6.0</Version>
+    <Title>Betta Plugin Templates</Title>
+    <Authors>Konrad Zaremba</Authors>
+    <Description>dotnet new templates for Betta Grasshopper plugins. Three flavors: basic (one collection), opaque (typed domain pipelines), and opaque-preview (with IBettaPreview viewport draws). Use 'dotnet new bettaplugin-basic -n MyPlugin' after installing.</Description>
+    <PackageTags>grasshopper;rhino;betta;template;dotnet-new</PackageTags>
+    <PackageType>Template</PackageType>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+
+    <RepositoryUrl>https://github.com/KonradZaremba/betta</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/KonradZaremba/betta</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\</PackageOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="content\**\*" Exclude="content\**\bin\**;content\**\obj\**" />
+    <Compile Remove="**\*" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <RootNamespace>Betta.Docs</RootNamespace>
+    <AssemblyName>betta-docs</AssemblyName>
+
+    <!-- dotnet tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>betta-docs</ToolCommandName>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+
+    <PackageId>Betta.Docs</PackageId>
+    <Version>0.6.0</Version>
+    <Title>Betta.Docs</Title>
+    <Authors>Konrad Zaremba</Authors>
+    <Description>Reflects over Betta plugin DLLs and emits markdown documentation for every [GrasshopperMethod] it finds. Standalone CLI — does not require Rhino or Grasshopper to be installed.</Description>
+    <PackageTags>grasshopper;rhino;betta;documentation;cli;tool</PackageTags>
+    <RepositoryUrl>https://github.com/KonradZaremba/GH_AutoCreator</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/KonradZaremba/GH_AutoCreator</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts\</PackageOutputPath>
+
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MetadataLoadContext: read assemblies without executing them. -->
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Reference Betta.Abstractions so its DLL travels alongside betta-docs.
+      Plugin DLLs reference Betta.Abstractions, and MetadataLoadContext needs to
+      resolve every TypeRef the plugin holds — even cross-assembly bindings of
+      [GrasshopperMethod] etc. We probe the tool's runtime folder in
+      Discoverer.BuildResolverPaths so this DLL is picked up automatically.
+
+      ExcludeAssets="runtime" is the wrong choice here: we DO need it at
+      runtime to feed MetadataLoadContext. The tool never *loads* it for
+      execution; MetadataLoadContext only reads its metadata.
+
+      Older plugins may have been compiled against an older Betta.Abstractions
+      version (FileVersion mismatch). MetadataLoadContext does not enforce
+      strong-name versions for unsigned assemblies, so the version recorded in
+      the manifest is irrelevant — only the simple name "Betta.Abstractions"
+      must resolve.
+    -->
+    <ProjectReference Include="..\Betta.Abstractions\Betta.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

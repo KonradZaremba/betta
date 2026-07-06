@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Konrad Zaremba",
+  "classifications": [ "Grasshopper", "Rhino", "Plugin", "Betta" ],
+  "name": "Betta plugin — opaque + viewport preview",
+  "description": "Opaque domain pipeline + IBettaPreview so the value draws in the Rhino viewport. Adds the Betta.Preview package reference.",
+  "identity": "Betta.Templates.OpaquePreview",
+  "shortName": "bettaplugin-opaque-preview",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "MyBettaPlugin",
+  "preferNameDirectory": true,
+  "symbols": {
+    "BettaAbstractionsVersion": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "0.4.0",
+      "replaces": "BETTA_ABSTRACTIONS_VERSION"
+    },
+    "BettaPreviewVersion": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "0.4.0",
+      "replaces": "BETTA_PREVIEW_VERSION"
+    },
+    "Category": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "MyPack",
+      "replaces": "MY_BETTA_CATEGORY"
+    }
+  }
+}

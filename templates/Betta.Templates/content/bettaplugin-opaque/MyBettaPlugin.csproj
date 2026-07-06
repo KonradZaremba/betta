@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Betta.Abstractions" Version="BETTA_ABSTRACTIONS_VERSION" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PostBuildEvent>
+      xcopy /Q/Y "$(TargetDir)MyBettaPlugin.dll" "%25AppData%25\Grasshopper\Libraries\Betta\" &amp; exit /b 0
+    </PostBuildEvent>
+  </PropertyGroup>
+
+</Project>

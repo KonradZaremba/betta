@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net7.0-windows</TargetFramework>
     <LangVersion>11</LangVersion>
-    <Version>0.3.1</Version>
+    <Version>0.6.0</Version>
 
     <AssemblyName>Betta</AssemblyName>
     <RootNamespace>Betta</RootNamespace>
@@ -11,6 +11,7 @@
     <Description>Same silhouette. Every fish is its own. Runtime adaptation for Grasshopper.</Description>
     <TargetExt>.gha</TargetExt>
     <UseWpf>true</UseWpf>
+    <UseWindowsForms>true</UseWindowsForms>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
@@ -34,6 +35,9 @@
 
   <ItemGroup>
     <PackageReference Include="Grasshopper" Version="[8.0,8.27)" IncludeAssets="compile;build" />
+    <!-- Reflection-only plugin-vs-dependency classification (PluginClassifier) so dependency
+         DLLs are never byte-loaded into a collectible ALC. netstandard2.0 pkg → loads on net7. -->
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
@@ -52,4 +56,6 @@
       xcopy /Q/Y "$(TargetDir)Betta.gha" "%AppData%\Grasshopper\Libraries\" &amp; xcopy /Q/Y "$(TargetDir)*.dll" "%AppData%\Grasshopper\Libraries\" &amp; exit /b 0
     </PostBuildEvent>
   </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)..\Betta.Build.targets" Condition="Exists('$(MSBuildThisFileDirectory)..\Betta.Build.targets')" />
 </Project>

@@ -1,0 +1,172 @@
+<Project>
+
+  <!--
+    Betta.Build.targets — yak + zip release automation.
+
+    Opt-in: enabled when -p:BuildYak=true is passed to dotnet build.
+    Fires only for Configuration=Release builds of the Betta.gha project
+    (AssemblyName=Betta + TargetExt=.gha), so a Release build of any other
+    project in the solution stays a normal build.
+
+    Pipeline:
+      1. Stage Betta.gha + Betta.Abstractions.dll + the rest of the
+         bin/Release/net7.0-windows payload (deps.json, runtimeconfig.json,
+         and the Microsoft.Extensions.* DLLs) into artifacts/yak/yak-staging/.
+      2. Generate manifest.yml from csproj metadata (Title, Description,
+         Version, Authors, project URL).
+      3. Drop the chosen icon next to the manifest as icon.png.
+      4. Run Yak.exe build in the staging dir.
+      5. Copy the produced .yak to artifacts/yak/Betta-<Version>-rh8_0-any.yak.
+      6. Also produce artifacts/Betta-<Version>.zip with Betta.gha +
+         Betta.Abstractions.dll (drop-in install).
+
+    Yak.exe missing? Step 4-5 are skipped with a friendly Warning; the .zip
+    is still produced so a release isn't blocked by a missing Rhino install.
+  -->
+
+  <PropertyGroup>
+    <!-- Default off so normal builds aren't slowed. Pass -p:BuildYak=true to enable. -->
+    <BuildYak Condition="'$(BuildYak)' == ''">false</BuildYak>
+
+    <!-- Path to Rhino 8's Yak.exe. Override at the command line if installed elsewhere. -->
+    <YakExePath Condition="'$(YakExePath)' == ''">C:\Program Files\Rhino 8\System\Yak.exe</YakExePath>
+
+    <!-- Repo-relative paths. $(MSBuildThisFileDirectory) is the repo root because
+         this targets file lives at the top of the repo. -->
+    <BettaArtifactsDir>$(MSBuildThisFileDirectory)artifacts</BettaArtifactsDir>
+    <BettaYakDir>$(BettaArtifactsDir)\yak</BettaYakDir>
+    <BettaYakStagingDir>$(BettaYakDir)\yak-staging</BettaYakStagingDir>
+
+    <!-- Icon used in the yak manifest. Same file used as the NuGet icon for
+         Betta.Abstractions — keeps the brand consistent across surfaces. -->
+    <BettaYakIconSource>$(MSBuildThisFileDirectory)media\NBTabBettaMini_Cosmic.png</BettaYakIconSource>
+
+    <!-- GitHub URL — single source of truth for the project URL in the manifest. -->
+    <BettaProjectUrl>https://github.com/KonradZaremba/betta</BettaProjectUrl>
+  </PropertyGroup>
+
+  <!--
+    _BettaBuildYak: the orchestrating target.
+
+    Conditions, all required:
+      - BuildYak=true               (explicit opt-in)
+      - Configuration=Release       (we never ship Debug binaries)
+      - AssemblyName=Betta          (only the .gha project, not Abstractions/Strings/etc.)
+      - TargetExt=.gha              (belt-and-braces: Betta.gha specifically)
+
+    AfterTargets=Build so it runs after the normal output is in $(TargetDir).
+  -->
+  <Target Name="_BettaBuildYak"
+          AfterTargets="Build"
+          Condition="'$(BuildYak)' == 'true' AND '$(Configuration)' == 'Release' AND '$(AssemblyName)' == 'Betta' AND '$(TargetExt)' == '.gha'">
+
+    <Message Importance="high" Text="[Betta yak] Starting yak/zip packaging for Betta $(Version)" />
+
+    <!-- 1. Staging dir. RemoveDir-then-MakeDir to start clean: stale files in
+            a yak payload show up in the package and confuse end users. -->
+    <RemoveDir Directories="$(BettaYakStagingDir)" Condition="Exists('$(BettaYakStagingDir)')" />
+    <MakeDir Directories="$(BettaYakStagingDir)" />
+    <MakeDir Directories="$(BettaYakDir)" />
+    <MakeDir Directories="$(BettaArtifactsDir)" />
+    <Message Importance="high" Text="[Betta yak] Staging dir: $(BettaYakStagingDir)" />
+
+    <!-- 2. Stage the runtime payload. Conservative — just the bin/Release output
+            that Grasshopper actually loads. Glob keeps us in sync if a new
+            transitive dependency lands without editing this file. -->
+    <ItemGroup>
+      <BettaYakPayload Include="$(TargetDir)Betta.gha" />
+      <BettaYakPayload Include="$(TargetDir)*.dll" />
+      <BettaYakPayload Include="$(TargetDir)Betta.deps.json" Condition="Exists('$(TargetDir)Betta.deps.json')" />
+      <BettaYakPayload Include="$(TargetDir)Betta.runtimeconfig.json" Condition="Exists('$(TargetDir)Betta.runtimeconfig.json')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BettaYakPayload)" DestinationFolder="$(BettaYakStagingDir)" SkipUnchangedFiles="false" />
+    <Message Importance="high" Text="[Betta yak] Staged @(BettaYakPayload->Count()) payload files" />
+
+    <!-- 3. Icon for the manifest. -->
+    <Copy SourceFiles="$(BettaYakIconSource)" DestinationFiles="$(BettaYakStagingDir)\icon.png" Condition="Exists('$(BettaYakIconSource)')" />
+
+    <!-- 4. Write manifest.yml from csproj metadata. Yak is strict about the YAML
+            shape (name/version/authors-list/description/url/keywords/icon),
+            so we author it explicitly rather than via dynamic 'yak spec' which
+            would shell out and pull the same data anyway.
+
+            Two MSBuild quirks worth knowing:
+              - $(Authors) defaults to $(AssemblyName) ("Betta") when not set,
+                which is wrong here. We fall back to the maintainer's name only
+                when $(Authors) is empty *or* equals $(AssemblyName).
+              - WriteLinesToFile strips leading whitespace from item Include
+                values, so a folded YAML scalar (`>-` then indented body) does
+                not survive an ItemGroup-based authoring approach. We build the
+                whole file as a single $(BettaManifestText) string and let
+                MSBuild's `%0A` newline escape do the line breaks. The optional
+                icon line is concatenated conditionally. -->
+    <PropertyGroup>
+      <BettaYakAuthor Condition="'$(Authors)' != '' AND '$(Authors)' != '$(AssemblyName)'">$(Authors)</BettaYakAuthor>
+      <BettaYakAuthor Condition="'$(BettaYakAuthor)' == ''">Konrad Zaremba</BettaYakAuthor>
+      <BettaYakIconLine Condition="Exists('$(BettaYakIconSource)')">%0Aicon: icon.png</BettaYakIconLine>
+      <BettaManifestText>---%0Aname: $(Title)%0Aversion: $(Version)%0Aauthors:%0A- $(BettaYakAuthor)%0Adescription: &gt;-%0A  $(Description)%0Aurl: $(BettaProjectUrl)%0Akeywords:%0A- grasshopper%0A- rhino%0A- dynamo%0A- zerotouch%0A- plugin%0A- components%0A- codegen%0A- betta$(BettaYakIconLine)%0A</BettaManifestText>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(BettaYakStagingDir)\manifest.yml"
+                      Lines="$(BettaManifestText)"
+                      Overwrite="true"
+                      Encoding="UTF-8" />
+    <Message Importance="high" Text="[Betta yak] Wrote manifest.yml ($(Title) $(Version))" />
+
+    <!-- 5. Run Yak.exe build if present. We test <Exists> rather than letting
+            Exec fail because a missing Rhino install is a normal state on CI
+            and shouldn't break the release flow (the .zip below is enough for
+            a manual install). -->
+    <PropertyGroup>
+      <BettaYakExeAvailable Condition="Exists('$(YakExePath)')">true</BettaYakExeAvailable>
+      <BettaYakExeAvailable Condition="!Exists('$(YakExePath)')">false</BettaYakExeAvailable>
+    </PropertyGroup>
+
+    <Warning Condition="'$(BettaYakExeAvailable)' == 'false'"
+             Text="[Betta yak] Yak.exe not found at '$(YakExePath)' — skipping .yak build. The .zip drop-in will still be produced. Override with -p:YakExePath=&lt;path&gt; if Rhino is installed elsewhere." />
+
+    <Exec Command="&quot;$(YakExePath)&quot; build"
+          WorkingDirectory="$(BettaYakStagingDir)"
+          Condition="'$(BettaYakExeAvailable)' == 'true'"
+          ContinueOnError="true">
+      <Output TaskParameter="ExitCode" PropertyName="BettaYakExitCode" />
+    </Exec>
+
+    <!-- 6. Copy the produced .yak out. Yak names the file
+            <name>-<version>-rh<rhino major>_<minor>-<framework>.yak (e.g.
+            betta-0.5.0-rh8_0-any.yak). Glob picks it up regardless of casing
+            and lets us copy out with a stable name. -->
+    <ItemGroup Condition="'$(BettaYakExeAvailable)' == 'true'">
+      <BettaProducedYak Include="$(BettaYakStagingDir)\*.yak" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BettaProducedYak)"
+          DestinationFiles="$(BettaYakDir)\Betta-$(Version)-rh8_0-any.yak"
+          Condition="'$(BettaYakExeAvailable)' == 'true' AND '@(BettaProducedYak)' != ''" />
+    <Message Importance="high"
+             Text="[Betta yak] Wrote $(BettaYakDir)\Betta-$(Version)-rh8_0-any.yak"
+             Condition="'$(BettaYakExeAvailable)' == 'true' AND '@(BettaProducedYak)' != ''" />
+    <Warning Condition="'$(BettaYakExeAvailable)' == 'true' AND '@(BettaProducedYak)' == ''"
+             Text="[Betta yak] Yak.exe ran (exit $(BettaYakExitCode)) but no .yak file was produced in '$(BettaYakStagingDir)'. Inspect the build output above." />
+
+    <!-- 7. Drop-in .zip. Built from the staging dir so the contents track the
+            yak payload exactly. ZipDirectory takes a folder; we don't want the
+            full payload here, just Betta.gha + Betta.Abstractions.dll (a
+            user-friendly minimal drop-in for %AppData%\Grasshopper\Libraries).
+            Stage to a sub-folder, zip that, throw it away. -->
+    <PropertyGroup>
+      <BettaZipStagingDir>$(BettaYakStagingDir)\..\zip-staging</BettaZipStagingDir>
+      <BettaZipOutput>$(BettaArtifactsDir)\Betta-$(Version).zip</BettaZipOutput>
+    </PropertyGroup>
+    <RemoveDir Directories="$(BettaZipStagingDir)" Condition="Exists('$(BettaZipStagingDir)')" />
+    <MakeDir Directories="$(BettaZipStagingDir)" />
+    <Copy SourceFiles="$(TargetDir)Betta.gha" DestinationFolder="$(BettaZipStagingDir)" />
+    <Copy SourceFiles="$(TargetDir)Betta.Abstractions.dll" DestinationFolder="$(BettaZipStagingDir)" />
+    <Delete Files="$(BettaZipOutput)" Condition="Exists('$(BettaZipOutput)')" />
+    <ZipDirectory SourceDirectory="$(BettaZipStagingDir)"
+                  DestinationFile="$(BettaZipOutput)" />
+    <RemoveDir Directories="$(BettaZipStagingDir)" />
+    <Message Importance="high" Text="[Betta yak] Wrote $(BettaZipOutput)" />
+
+    <Message Importance="high" Text="[Betta yak] Done." />
+  </Target>
+
+</Project>

@@ -17,7 +17,7 @@
     <!-- NuGet package metadata -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>Betta.Abstractions</PackageId>
-    <Version>0.3.1</Version>
+    <Version>0.6.0</Version>
     <Title>Betta.Abstractions</Title>
     <Authors>Konrad Zaremba</Authors>
     <Description>Public contract (attributes + marker interface) for authoring Betta plugins: zero-touch Grasshopper components from attributed C# service methods. Same silhouette, every fish is its own.</Description>
@@ -34,6 +34,15 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
     <None Include="..\media\NBTabBettaMini_Cosmic.png" Pack="true" PackagePath="icon.png" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IBettaModule plugs into Microsoft.Extensions.DependencyInjection's
+         IServiceCollection so plugin assemblies can register their own
+         services. The Abstractions package targets netstandard2.0, which the
+         DI.Abstractions package also supports — no extra transitive cost for
+         plugins that don't use the hook. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
   </ItemGroup>
 
 </Project>

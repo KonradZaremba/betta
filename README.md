@@ -131,10 +131,146 @@ If a class implements a marked interface, the interface wins (no double registra
 | primitive / Rhino geometry | one output |
 | `List<T>` | one list output |
 | `ValueTuple` | one per element (named tuple → named outputs) |
-| custom class | one per public property |
+| **plain** custom class | one per public property |
+| **opaque** class (`[GrasshopperOpaque]` / `IBettaValue`) | **one typed wire** — Betta auto-generates `Param_BettaGoo<T>` |
+| `List<T>` of opaque `T` | one typed list wire |
+| `enum` parameter | integer input (wire a slider or panel — names parse too) |
 | `Task<T>` / `ValueTask<T>` | async — cached by input hash, re-solves on completion |
 
 Name outputs explicitly with `[return: GrasshopperOutput("Result", "R", "…")]` (repeat with `Index` per tuple element).
+
+### Pass domain objects through pipelines
+
+Mark a domain type opaque to skip return-type explosion and ship the value as a single typed wire:
+
+```csharp
+[GrasshopperOpaque]                              // or: class Graph : IBettaValue
+public class Graph { /* ... */ }
+
+[GrasshopperMethod("Load")]
+Graph Load(string path);
+
+[GrasshopperMethod("Deconstruct")]
+(List<Point3d> Nodes, List<Line> Edges) Deconstruct(Graph g);  // ← real pipeline
+```
+
+The auto-generated `Param_BettaGoo<T>` carries a deterministic ComponentGuid = `MD5(typeof(T).FullName)`, so saved `.gh` files round-trip across machines and rebuilds.
+
+### Plugin DI hook
+
+Plugins can register their own services for constructor injection:
+
+```csharp
+public class MyModule : IBettaModule
+{
+    public void ConfigureServices(IServiceCollection services) =>
+        services.AddSingleton<IGeometryService, GeometryService>();
+}
+```
+
+Betta discovers every `IBettaModule` in own + loaded plugin assemblies and calls `ConfigureServices` before `BuildServiceProvider`. A faulty module is logged but does not break startup. (Limitation: runtime-dropped plugins — hot-added after Rhino started — do not get a module pass.)
+
+### Viewport preview & bake (`Betta.Preview` package)
+
+Opaque types can opt into Rhino viewport drawing and right-click → bake:
+
+```csharp
+using Betta.Preview;
+public class Graph : IBettaValue, IBettaPreview, IBettaBakeable {
+    public BoundingBox ClippingBox { get; }
+    public void DrawWires(IGH_PreviewArgs args)  { /* args.Display.Draw* */ }
+    public void DrawMeshes(IGH_PreviewArgs args) { /* args.Display.Draw* */ }
+    public void Bake(RhinoDoc doc, ObjectAttributes att, List<Guid> obj_ids) {
+        // add Rhino objects to the doc, push their Guids onto obj_ids
+    }
+}
+```
+
+Betta detects the interfaces by name (no hard reference) and the wrapping component forwards Draw / Bake calls via reflection. Only add the `Betta.Preview` package if you want preview or bake — most plugins don't need it.
+
+### Other opt-ins on opaque types
+
+- **`IBettaDefault`** — unwired opaque inputs get a fresh `new T()` instead of `null`.
+- **`IBettaSerializable`** — round-trip the opaque value through `.gh` save/reload via `byte[] ToBytes()` / `void LoadFromBytes(byte[])`. Skip if your pipeline always recomputes from inputs.
+
+### Tree inputs and outputs
+
+A method that takes a `GH_Structure<TGoo>` receives the whole tree as one argument; one returning `GH_Structure<TGoo>` emits a tree output. Item/list inputs continue to iterate as before:
+
+```csharp
+[GrasshopperMethod("Batch From Tree")]
+public List<Graph> BatchFromTree(
+    [GrasshopperParameter("Seeds")] GH_Structure<GH_Number> seeds,
+    [GrasshopperParameter("Kind")] GraphKind kind);
+```
+
+### Param validation
+
+Gate inputs before the method body runs — bad values surface as a runtime Warning and skip the invocation:
+
+```csharp
+double Scaled(
+    [GrasshopperParameter("Scale"), GrasshopperRange(0.1, 10.0)] double scale,
+    [GrasshopperParameter("Label"), GrasshopperNotEmpty] string label);
+```
+
+For richer rules implement `IBettaValidator` and attach with `[GrasshopperValidation(typeof(MyValidator))]`.
+
+### Async with cancellation & progress
+
+Methods returning `Task<T>` can take synthetic parameters Betta fills at solve time:
+
+```csharp
+[GrasshopperMethod("Slow Sum")]
+async Task<double> SumAsync(List<double> xs, CancellationToken ct,
+                            IProgress<int> progress);
+```
+
+`ct` cancels the moment the component re-solves (so stale work quits). `progress.Report(42)` updates the component's status tag — free progress UI.
+
+### Per-instance state via menu (no extra wire)
+
+Tag a parameter `[GrasshopperMenuState]` to bind it to a right-click menu pick instead of a wired input. Enum and bool types get a UI editor; other types accept the persisted value:
+
+```csharp
+[GrasshopperMethod("Render")]
+Bitmap Render([GrasshopperParameter("Quality"), GrasshopperMenuState] Quality q,
+              [GrasshopperParameter("Scene")] string scene);
+```
+
+### Secrets, triggers, and value-list presets
+
+Three attributes cover the most common cloud-API component ergonomics:
+
+- **`[GrasshopperSecret("openai.api_key")]`** on a `string` parameter — value read from Windows Credential Manager (DPAPI-backed) at solve time. Not wired; users set once via the **Betta → Secrets…** menu.
+- **`[GrasshopperTrigger]`** on a `bool` parameter — component adds a **Run** menu item and only fires when clicked. Between clicks the solve exits with `Message = "awaiting run"`, so upstream wire changes never accidentally spend API calls.
+- **`[GrasshopperValueList("1:1", "16:9", "4:3")]`** on any input parameter — when the component is placed, Betta auto-drops a wired `GH_ValueList` seeded with those items. Users still get an actual GH dropdown; you don't have to place one manually.
+
+```csharp
+[GrasshopperMethod("Generate")]
+public async Task<BettaImage> Generate(
+    [GrasshopperParameter("Prompt")] string prompt,
+    [GrasshopperValueList("1:1", "16:9", "9:16")] string aspect,
+    [GrasshopperSecret("openai.api_key")] string apiKey,
+    [GrasshopperTrigger] bool run,
+    CancellationToken ct) { … }
+```
+
+### Trusted publishers (opt-in DLL signing)
+
+Off by default. Enable via **Betta → Trusted publishers…** to pick between `Off` / `WarnOnly` / `Enforce` and import trusted publisher certificates (from a `.cer` file or by pointing at a signed DLL). Enforced in `PluginLoader` before the ALC loads bytes.
+
+### Built-in introspection
+
+- **Betta Inspector** component lists every registered descriptor on solve.
+- **`Betta_Status`** Rhino command writes the same to the command line.
+- **`betta-docs`** dotnet tool walks loaded plugins and emits markdown documentation per category.
+
+### Async, hot-reload, and the source generator
+
+- **Async** (`Task<T>` / `ValueTask<T>` returns) — non-blocking solve, bounded LRU cache with in-flight dedupe.
+- **Hot-reload** — when you drop a replaced DLL into the Betta folder mid-session, Betta now writes a visible warning to the Rhino command line telling you to restart. (True ALC-based unload is roadmap.)
+- **`Betta.Generators`** (preview) — Roslyn source generator that emits a manifest of `[GrasshopperMethod]` members. v0.4 is metadata-only; future versions will replace runtime reflection with generated registrations. Opt-in via package reference.
 
 ## A fish per component
 

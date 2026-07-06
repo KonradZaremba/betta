@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Betta.Mcp</RootNamespace>
+    <AssemblyName>betta-mcp</AssemblyName>
+
+    <!-- Pack as a dotnet tool as well. The build still produces a normal exe
+         (betta-mcp.exe) so Claude Desktop / Cursor can invoke it directly
+         without `dotnet tool install`. -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>betta-mcp</ToolCommandName>
+
+    <!-- Reproducible build, deterministic NuGet output. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- NuGet package metadata -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>Betta.Mcp</PackageId>
+    <Version>0.6.0</Version>
+    <Title>Betta.Mcp</Title>
+    <Authors>Konrad Zaremba</Authors>
+    <Description>Model Context Protocol (MCP) server that exposes the live state of a Betta Grasshopper installation to AI agents: loaded plugins, recent log lines, component descriptors, and signature validation. Run as a CLI or `dotnet tool`.</Description>
+    <PackageTags>grasshopper;rhino;betta;mcp;claude;ai;agent;tool</PackageTags>
+    <RepositoryUrl>https://github.com/KonradZaremba/GH_AutoCreator</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/KonradZaremba/GH_AutoCreator</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts\</PackageOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\media\NBTabBettaMini_Cosmic.png" Pack="true" PackagePath="icon.png" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MetadataLoadContext lets us inspect plugin DLLs (which target net7.0-windows
+         and reference Grasshopper / Rhino assemblies) without actually loading or
+         executing them. The package is the only runtime dependency we need. -->
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

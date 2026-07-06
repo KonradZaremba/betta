@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Betta.Abstractions" Version="BETTA_ABSTRACTIONS_VERSION" ExcludeAssets="runtime" />
+    <PackageReference Include="Betta.Preview" Version="BETTA_PREVIEW_VERSION" ExcludeAssets="runtime" />
+    <!-- IGH_PreviewArgs lives in Grasshopper; ExcludeAssets="runtime" because
+         Rhino provides it at load time. -->
+    <PackageReference Include="Grasshopper" Version="[8.0,8.27)" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PostBuildEvent>
+      xcopy /Q/Y "$(TargetDir)MyBettaPlugin.dll" "%25AppData%25\Grasshopper\Libraries\Betta\" &amp; exit /b 0
+    </PostBuildEvent>
+  </PropertyGroup>
+
+</Project>

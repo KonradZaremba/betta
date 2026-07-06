@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Betta.OpaqueDemo</AssemblyName>
+    <RootNamespace>Betta.OpaqueDemo</RootNamespace>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+    <!-- Emit generator output to obj/.../generated/ for inspection. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Public contract — attributes + marker + IBettaModule. -->
+    <ProjectReference Include="..\..\Betta.Abstractions\Betta.Abstractions.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+    <!-- Preview hook (Rhino.Geometry + IGH_PreviewArgs). Only plugins that
+         actually want viewport preview need this — the rest stay dep-free. -->
+    <ProjectReference Include="..\..\Betta.Preview\Betta.Preview.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+    <!-- Betta source generator: emits Betta.Generated.BettaPluginBootstrap.
+         Analyzer-only reference (no runtime dep on the netstandard2.0 dll). -->
+    <ProjectReference Include="..\..\Betta.Generators\Betta.Generators.csproj"
+      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grasshopper" Version="[8.0,8.27)" IncludeAssets="compile;build" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PostBuildEvent>
+      xcopy /Q/Y "$(TargetDir)Betta.OpaqueDemo.dll" "%AppData%\Grasshopper\Libraries\Betta\" &amp; exit /b 0
+    </PostBuildEvent>
+  </PropertyGroup>
+</Project>

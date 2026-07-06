@@ -75,6 +75,18 @@ namespace Betta
                 return plans;
             }
 
+            // Tree output: GH_Structure<TGoo>. Surface as a single tree-access
+            // output; ParamVector.GetParamAccessType maps the type to
+            // GH_ParamAccess.tree automatically.
+            if (IsGhStructureType(outputType))
+            {
+                var a = AttrFor(0);
+                plans.Add(new OutputPlan(
+                    a?.Name ?? "Output", a?.NickName ?? a?.Name ?? "Out",
+                    a?.Description ?? "Tree output", outputType, false));
+                return plans;
+            }
+
             // List<T> output.
             if (outputType.IsGenericType && outputType.GetGenericTypeDefinition() == typeof(List<>))
             {
@@ -85,7 +97,10 @@ namespace Betta
                 return plans;
             }
 
-            // Tuple → one output per element.
+            // Tuple → one output per element. Includes high-arity ValueTuples
+            // — those with 8+ elements — via GetTupleElementTypes' TRest walk,
+            // so a method returning (int a, int b, ..., int i) surfaces nine
+            // outputs, not eight.
             if (IsTupleType(outputType))
             {
                 var tupleTypes = GetTupleElementTypes(outputType);
@@ -105,15 +120,48 @@ namespace Betta
                 return plans;
             }
 
-            // Complex object → one output per public simple property.
-            if (outputType.IsClass && outputType != typeof(string))
+            // Opaque domain object: pass through as a single typed output
+            // instead of exploding into properties. The runtime auto-generates
+            // a GH_BettaGoo<T> + Param_BettaGoo<T> for the type.
+            bool opaque = OpaqueDetection.IsTypeOpaque(outputType) ||
+                          OpaqueDetection.IsMethodReturnOpaque(method);
+
+            // Raw System.Drawing.Bitmap / Image: these are container types
+            // with a large property surface (Width, Height, PixelFormat,
+            // Palette, Flags, HorizontalResolution…) that make the "class
+            // explosion" branch below emit nonsense. Ship them as one output.
+            // For richer bake / preview / PNG ergonomics, plugin authors
+            // should return Betta.Preview.BettaImage instead — that's opaque
+            // and gets a typed goo pair automatically.
+            if (outputType.FullName == "System.Drawing.Bitmap" ||
+                outputType.FullName == "System.Drawing.Image")
+            {
+                var a = AttrFor(0);
+                plans.Add(new OutputPlan(
+                    a?.Name ?? "Image", a?.NickName ?? a?.Name ?? "Img",
+                    a?.Description ?? "Bitmap output", outputType, false));
+                return plans;
+            }
+
+            // Complex object → one output per public property (unless opaque).
+            // Property types include simple types AND opaque types / List<T>
+            // of opaque types, so a class returning a mix of primitives and
+            // domain objects surfaces every field as a typed wire. Without
+            // that, classes returning opaque-typed properties silently drop
+            // them (ML Plans' History / Gallery / LoadWithMetadata hit this).
+            if (!opaque && outputType.IsClass && outputType != typeof(string))
             {
                 var properties = outputType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                    .Where(p => p.CanRead && IsSimpleType(p.PropertyType))
+                    .Where(p => p.CanRead && IsExplodableProperty(p.PropertyType))
                     .Take(10); // cap to avoid UI clutter
 
                 foreach (var prop in properties)
-                    plans.Add(new OutputPlan(prop.Name, prop.Name, $"Property: {prop.Name}", prop.PropertyType, false));
+                {
+                    var propType = prop.PropertyType;
+                    bool isList = propType.IsGenericType &&
+                                  propType.GetGenericTypeDefinition() == typeof(List<>);
+                    plans.Add(new OutputPlan(prop.Name, prop.Name, $"Property: {prop.Name}", propType, isList));
+                }
 
                 if (plans.Any())
                     return plans;
@@ -147,7 +195,68 @@ namespace Betta
              type.GetGenericTypeDefinition() == typeof(Tuple<,,,,,,,>) ||
              (type.FullName?.StartsWith("System.ValueTuple") == true)); // ValueTuple support
 
-        public static Type[] GetTupleElementTypes(Type tupleType) =>
-            tupleType.IsGenericType ? tupleType.GetGenericArguments() : Array.Empty<Type>();
+        /// <summary>
+        /// Return the flattened element types of a tuple. For arities ≤ 7 this
+        /// is just <c>GetGenericArguments()</c>; for arity 8+, the eighth
+        /// generic argument (<c>TRest</c>) is another tuple whose own elements
+        /// count. Walks TRest recursively so a <c>ValueTuple&lt;T1..T7,ValueTuple&lt;T8,T9&gt;&gt;</c>
+        /// yields all nine element types in declaration order.
+        /// </summary>
+        public static Type[] GetTupleElementTypes(Type tupleType)
+        {
+            if (tupleType == null || !tupleType.IsGenericType)
+                return Array.Empty<Type>();
+
+            var acc = new List<Type>();
+            Walk(tupleType);
+            return acc.ToArray();
+
+            void Walk(Type t)
+            {
+                var args = t.GetGenericArguments();
+                if (args.Length < 8)
+                {
+                    acc.AddRange(args);
+                    return;
+                }
+                // Arity-8 slot: 7 elements + 1 TRest.
+                for (int i = 0; i < 7; i++) acc.Add(args[i]);
+                var rest = args[7];
+                if (IsTupleType(rest)) Walk(rest);
+                else acc.Add(rest); // shouldn't happen for well-formed tuples
+            }
+        }
+
+        /// <summary>
+        /// Property types eligible for the class-return-explosion output list:
+        /// simple types (primitives, string, Rhino geometry, enums), single
+        /// opaque domain objects (marked with [GrasshopperOpaque] or IBettaValue),
+        /// and <c>List&lt;T&gt;</c> of either. The list-of-simple case flows
+        /// through the normal list-access output pipeline; opaque + list-of-opaque
+        /// flow through the Param_BettaGoo&lt;T&gt; pair the runtime auto-generates.
+        /// </summary>
+        internal static bool IsExplodableProperty(Type t)
+        {
+            if (t == null) return false;
+            if (IsSimpleType(t)) return true;
+            if (OpaqueDetection.IsTypeOpaque(t)) return true;
+
+            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>))
+            {
+                var element = t.GetGenericArguments()[0];
+                return IsSimpleType(element) || OpaqueDetection.IsTypeOpaque(element);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// True if <paramref name="t"/> is the closed generic
+        /// <c>GH_Structure&lt;TGoo&gt;</c>. Detected by FullName string so this
+        /// GH-free file stays free of a Grasshopper.Kernel.Data reference.
+        /// </summary>
+        public static bool IsGhStructureType(Type t) =>
+            t != null &&
+            t.IsGenericType &&
+            t.GetGenericTypeDefinition().FullName == "Grasshopper.Kernel.Data.GH_Structure`1";
     }
 }

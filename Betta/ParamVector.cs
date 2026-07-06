@@ -13,6 +13,7 @@ using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using System.Collections;
 using Betta.Attributes;
+using Betta.Services;
 
 namespace Betta
 {
@@ -123,6 +124,13 @@ namespace Betta
         public static IGH_Param GetGhParamType(System.Type type)
         {
             if (type != null) {
+                // Opaque domain types come first: ComponentRegistry registered
+                // a Param_BettaGoo<T> factory at discovery, so any input or
+                // output typed as T (or List<T>, since the instance overload
+                // strips the IList wrapper) gets the typed param + goo pair.
+                if (ParamRegistry.TryGetFactory(type, out var opaqueFactory))
+                    return opaqueFactory();
+
                 return type.FullName switch
                 {
                     "Rhino.Geometry.Point3d" => new Param_Point(),
@@ -133,9 +141,29 @@ namespace Betta
                     "Rhino.Geometry.Line" => new Param_Line(),
                     "Rhino.Geometry.Arc" => new Param_Arc(),
                     "Rhino.Geometry.Box" => new Param_Box(),
+                    "Rhino.Geometry.BoundingBox" => new Param_Box(),
                     "Rhino.Geometry.Brep" => new Param_Brep(),
                     "Rhino.Geometry.Mesh" => new Param_Mesh(),
                     "Rhino.Geometry.Surface" => new Param_Surface(),
+                    "Rhino.Geometry.Curve" => new Param_Curve(),
+                    "Rhino.Geometry.Interval" => new Param_Interval(),
+                    "Rhino.Geometry.Transform" => new Param_Transform(),
+
+                    "System.Drawing.Color" => new Param_Colour(),
+                    "System.Guid" => new Param_Guid(),
+
+                    // Bitmap / Image are container types with a large public
+                    // property surface (Width, Height, PixelFormat, Palette,
+                    // Flags, HorizontalResolution…). Without this branch,
+                    // OutputPlanner's "class-return explosion" would emit
+                    // one output per property — nonsense for anyone actually
+                    // producing an image. Map to Param_GenericObject so the
+                    // bitmap flows as one wire; consumers unwrap with a cast.
+                    // For richer ergonomics (bake-to-PictureFrame, thumbnail,
+                    // PNG serialize) return BettaImage from Betta.Preview
+                    // instead — it's opaque and gets its own typed goo pair.
+                    "System.Drawing.Bitmap" => new Param_GenericObject(),
+                    "System.Drawing.Image" => new Param_GenericObject(),
 
                     _ => GetGhParamGenericType(type),
                 };
@@ -163,6 +191,12 @@ namespace Betta
 
         public static IGH_Param GetGhParamGenericType(Type type)
         {
+            // Enums are integer-backed at the CLR level — surface as an
+            // integer input. The method body still receives the typed enum
+            // value (ParamInjector.ChangeTypeStrong converts int → enum).
+            // Users can wire an Integer Slider or a Panel ("Walls" parses too).
+            if (type != null && type.IsEnum) return new Param_Integer();
+
             switch (Type.GetTypeCode(type)) {
 
                 //system types

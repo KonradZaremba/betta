@@ -55,6 +55,21 @@ namespace Betta.Components
         private readonly Dictionary<string, Task> _asyncInFlight = new();
         private const int AsyncCacheMax = 64;
 
+        // Streaming support: when the service method returns IObservable<T>, we
+        // subscribe ONCE per input set and call ExpireSolution on EVERY emission,
+        // deliberately bypassing the input-hash async cache above — so a push
+        // source (a container change feed, a socket, a ticker) drives the canvas
+        // live instead of firing once. The subscription is torn down in
+        // RemovedFromDocument and rebuilt when the inputs change. Expires are
+        // coalesced so a burst of emissions collapses into one re-solve.
+        private bool _isStreaming;
+        private readonly object _streamLock = new();
+        private IDisposable _streamSubscription;
+        private string _streamKey;
+        private object _streamLatest;
+        private bool _streamHasValue;
+        private int _streamExpirePending;
+
         // Preview / bake support: when descriptor.HasPreview or HasBakeable
         // is true, SolveInstance stashes the emitted values here so the
         // IGH_PreviewObject and IGH_BakeAwareObject overrides below can
@@ -99,9 +114,11 @@ namespace Betta.Components
                 _logger = Startup.ServiceProvider.GetService<ILogger<BettaComponent>>() ?? _logger;
             }
 
-            if (_descriptor != null && IsTaskType(_descriptor.Method.ReturnType))
+            if (_descriptor != null)
             {
-                _isAsync = true;
+                var returnType = _descriptor.Method.ReturnType;
+                if (IsTaskType(returnType)) _isAsync = true;
+                else if (IsObservableType(returnType)) _isStreaming = true;
             }
         }
 
@@ -111,6 +128,9 @@ namespace Betta.Components
             var gt = t.GetGenericTypeDefinition();
             return gt == typeof(Task<>) || gt == typeof(ValueTask<>);
         }
+
+        private static bool IsObservableType(Type t) =>
+            t != null && t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IObservable<>);
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
@@ -187,6 +207,17 @@ namespace Betta.Components
                 batches = _paramInjector.GetListData(batches);
 
                 var results = new List<object>();
+                // For async methods, record the cache key of every result read
+                // this solve. The async cache exists only to bridge
+                // launch -> complete -> ExpireSolution -> re-solve (and to
+                // accumulate staggered multi-item results); once the full set is
+                // delivered we EVICT those keys (after the loop) so a genuine
+                // re-trigger with identical inputs recomputes instead of
+                // returning a stale result. Non-deterministic methods — image
+                // generation, API calls, viewport capture — must re-run on every
+                // Run, not memoize forever. Early returns (still computing) evict
+                // nothing, so already-completed sibling items stay cached.
+                var asyncKeysThisSolve = _isAsync ? new List<string>() : null;
                 foreach (var batch in batches)
                 {
                     try
@@ -244,6 +275,19 @@ namespace Betta.Components
                                 return;
                             }
                             Message = null;
+                            asyncKeysThisSolve.Add(AsyncKey(args));
+                        }
+                        else if (_isStreaming)
+                        {
+                            if (!TryGetStreamResult(args, out result))
+                            {
+                                // Subscribed, but the source hasn't pushed a value yet.
+                                // The next emission calls ExpireSolution and the
+                                // re-solve emits it.
+                                Message = "listening";
+                                return;
+                            }
+                            Message = null;
                         }
                         else
                         {
@@ -261,6 +305,12 @@ namespace Betta.Components
                         return;
                     }
                 }
+
+                // The full set of async results for this solve has been read and
+                // is about to be output — evict them so the next genuine re-solve
+                // recomputes rather than returning these (now stale) values.
+                if (asyncKeysThisSolve != null && asyncKeysThisSolve.Count > 0)
+                    EvictAsyncResults(asyncKeysThisSolve);
 
                 if (results.Count == 1)
                 {
@@ -523,6 +573,30 @@ namespace Betta.Components
         }
 
         /// <summary>
+        /// Remove delivered async results from the cache. Called once a solve has
+        /// read the complete set of results for all its batches, so the cache
+        /// holds a value only for the brief launch -> complete -> re-solve window,
+        /// never across genuine re-triggers. Without this, a memoized result makes
+        /// a non-deterministic method (image generation, an API call, a viewport
+        /// capture) return the same output forever on unchanged inputs — the user
+        /// toggles Run and gets the previous image back.
+        /// </summary>
+        private void EvictAsyncResults(IEnumerable<string> keys)
+        {
+            lock (_asyncLock)
+            {
+                foreach (var key in keys)
+                {
+                    if (_asyncCache.TryGetValue(key, out var node))
+                    {
+                        _asyncOrder.Remove(node);
+                        _asyncCache.Remove(key);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Normalize Task&lt;T&gt; and ValueTask&lt;T&gt; into a plain Task the
         /// continuation can subscribe to. Returns null if the object isn't a
         /// recognized task type.
@@ -538,6 +612,162 @@ namespace Betta.Components
                 return asTaskMethod.Invoke(invocation, null) as Task;
 
             return null;
+        }
+
+        /// <summary>
+        /// Subscribe-once-then-latest for streaming service methods (IObservable&lt;T&gt;).
+        /// The first solve for a given input set invokes the method, subscribes to the
+        /// returned observable, and returns false ("listening") until the source pushes.
+        /// Each OnNext stores the latest value and marshals a COALESCED ExpireSolution
+        /// onto the UI thread, so the re-solve returns true with the newest value. When
+        /// the wired inputs change the old subscription is disposed and a new one opened.
+        /// Unlike the async path there is NO input-hash cache — every emission re-fires.
+        /// </summary>
+        private bool TryGetStreamResult(object[] args, out object result)
+        {
+            var key = AsyncKey(args);
+
+            bool needSubscribe;
+            lock (_streamLock)
+            {
+                needSubscribe = _streamSubscription == null ||
+                                !string.Equals(_streamKey, key, StringComparison.Ordinal);
+            }
+
+            if (needSubscribe)
+                SubscribeStream(args, key);
+
+            lock (_streamLock)
+            {
+                if (!_streamHasValue) { result = null; return false; }
+                result = _streamLatest;
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Tear down any prior subscription (inputs changed), reset the latest-value
+        /// slot BEFORE subscribing (so a source that replays synchronously on subscribe
+        /// isn't lost), invoke the method, and subscribe. The subscription's OnNext
+        /// closure holds a reference to this component, so it is disposed in
+        /// RemovedFromDocument (and here, on re-subscribe) to avoid a leak.
+        /// </summary>
+        private void SubscribeStream(object[] args, string key)
+        {
+            DisposeStream();
+
+            lock (_streamLock)
+            {
+                _streamKey = key;
+                _streamLatest = null;
+                _streamHasValue = false;
+            }
+
+            object invocation;
+            try
+            {
+                invocation = _paramInjector.Method.Invoke(_service, args);
+            }
+            catch (Exception ex)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"Stream invoke failed: {ex.Message}");
+                _logger.LogError(ex, "{Name}: stream invoke threw", _descriptor.Name);
+                return;
+            }
+
+            var subscription = SubscribeObservable(
+                invocation,
+                onNext: value =>
+                {
+                    lock (_streamLock) { _streamLatest = value; _streamHasValue = true; }
+                    ScheduleStreamExpire();
+                },
+                onError: ex => Rhino.RhinoApp.InvokeOnUiThread(new Action(() =>
+                {
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, ex?.Message ?? "stream faulted");
+                    _logger.LogError(ex, "{Name}: stream faulted", _descriptor.Name);
+                })));
+
+            if (subscription == null)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Streaming method did not return an IObservable<T>");
+                return;
+            }
+
+            lock (_streamLock) { _streamSubscription = subscription; }
+        }
+
+        /// <summary>
+        /// Coalesced ExpireSolution: if one is already queued, the pending re-solve
+        /// will read the latest value — so a burst of N emissions collapses into one
+        /// re-solve instead of stacking N. Always marshaled to the UI thread.
+        /// </summary>
+        private void ScheduleStreamExpire()
+        {
+            if (Interlocked.Exchange(ref _streamExpirePending, 1) == 1) return;
+            Rhino.RhinoApp.InvokeOnUiThread(new Action(() =>
+            {
+                Interlocked.Exchange(ref _streamExpirePending, 0);
+                try { ExpireSolution(true); }
+                catch (Exception ex) { _logger.LogError(ex, "{Name}: stream expire failed", _descriptor?.Name); }
+            }));
+        }
+
+        /// <summary>Dispose the current stream subscription (if any) and reset stream state.</summary>
+        private void DisposeStream()
+        {
+            IDisposable sub;
+            lock (_streamLock)
+            {
+                sub = _streamSubscription;
+                _streamSubscription = null;
+                _streamKey = null;
+                _streamLatest = null;
+                _streamHasValue = false;
+            }
+            try { sub?.Dispose(); }
+            catch { /* a faulty Dispose must not crash the solver */ }
+        }
+
+        /// <summary>
+        /// Subscribe to an <c>IObservable&lt;T&gt;</c> whose T is not known statically,
+        /// via a closed-generic <see cref="IObserver{T}"/> bridge (mirrors the
+        /// ProgressBridge trick). Returns the subscription <see cref="IDisposable"/>,
+        /// or null when the object is not an observable.
+        /// </summary>
+        private static IDisposable SubscribeObservable(object observable, Action<object> onNext, Action<Exception> onError)
+        {
+            if (observable == null) return null;
+
+            var t = observable.GetType();
+            var obsInterface =
+                (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IObservable<>)) ? t :
+                t.GetInterfaces().FirstOrDefault(i => i.IsGenericType &&
+                    i.GetGenericTypeDefinition() == typeof(IObservable<>));
+            if (obsInterface == null) return null;
+
+            var tArg = obsInterface.GetGenericArguments()[0];
+            var bridge = Activator.CreateInstance(
+                typeof(ObserverBridge<>).MakeGenericType(tArg), onNext, onError);
+            return obsInterface.GetMethod("Subscribe")?.Invoke(observable, new[] { bridge }) as IDisposable;
+        }
+
+        private sealed class ObserverBridge<T> : IObserver<T>
+        {
+            private readonly Action<object> _onNext;
+            private readonly Action<Exception> _onError;
+            public ObserverBridge(Action<object> onNext, Action<Exception> onError)
+            { _onNext = onNext; _onError = onError; }
+            public void OnNext(T value) => _onNext?.Invoke(value);
+            public void OnError(Exception error) => _onError?.Invoke(error);
+            public void OnCompleted() { }
+        }
+
+        /// <summary>Dispose any live stream subscription when the component leaves the document.</summary>
+        public override void RemovedFromDocument(GH_Document document)
+        {
+            DisposeStream();
+            base.RemovedFromDocument(document);
         }
 
         /// <summary>

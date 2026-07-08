@@ -86,14 +86,15 @@ namespace Betta
         {
             var declared = Outputs;
 
-            // Task<T> / ValueTask<T>: unwrap so the output param(s) reflect T,
-            // not the Task wrapper. The runtime's async path already hands
-            // the unwrapped result to SetOutputDataAdvanced.
+            // Task<T> / ValueTask<T> / IObservable<T>: unwrap so the output
+            // param(s) reflect T, not the wrapper. The runtime's async and
+            // streaming paths both hand the unwrapped T to SetOutputDataAdvanced.
             if (declared != null && declared.IsGenericType)
             {
                 var gt = declared.GetGenericTypeDefinition();
                 if (gt == typeof(System.Threading.Tasks.Task<>) ||
-                    gt == typeof(System.Threading.Tasks.ValueTask<>))
+                    gt == typeof(System.Threading.Tasks.ValueTask<>) ||
+                    gt == typeof(IObservable<>))
                 {
                     declared = declared.GetGenericArguments()[0];
                 }
@@ -106,14 +107,9 @@ namespace Betta
         public List<ExpandoObject> GetItemData()
         {
             var inputs = ParamServer.Where(x => x.Kind == GH_ParamKind.input).ToList();
-            // Tree-access inputs may carry many paths; only item/list inputs
-            // are gated to a single path. The method body still sees the
-            // whole tree for tree params (see BuildArguments). An EMPTY input
-            // (PathCount == 0) is fine — an unwired optional param with no
-            // default has no data and must not trip the multi-path guard; only
-            // genuinely multi-path (> 1) input is unsupported.
-            if (inputs.Any(x => x.Access != GH_ParamAccess.tree && x.VolatileData.PathCount > 1))
-                throw new Exception("Item/list inputs across multi-path trees are not supported yet");
+            // Item/list inputs are read as one logical, flattened list across ALL branches (in path order) —
+            // a multi-branch tree collapses to a flat sequence rather than being rejected. Tree structure is
+            // honoured only for tree-access params, which BuildArguments hands the whole GH_Structure.
 
             var itemInputs = inputs.Where(x => x.Access == GH_ParamAccess.item).ToList();
             var maxItemCount = itemInputs.Any() ? itemInputs.Max(x => x.VolatileData.DataCount) : 1;
@@ -129,17 +125,14 @@ namespace Betta
                     var input = inputs[idx];
                     if (input.Access != GH_ParamAccess.item) continue;
 
-                    // Empty/unwired optional item input: no branch to read
-                    // (get_Branch(0) would throw). Leave the arg absent so
-                    // BuildArguments supplies its default (null for reference
-                    // types, the parameter default otherwise).
-                    if (input.VolatileDataCount == 0) continue;
+                    // Flatten every branch into one sequence; an empty/unwired optional input yields an empty
+                    // list, so the arg is left absent and BuildArguments supplies its default.
+                    var flat = FlattenBranches(input.VolatileData);
+                    if (flat.Count == 0) continue;
 
-                    var branch = input.VolatileData.get_Branch(0);
-                    var index = i < input.VolatileDataCount ? i : input.VolatileDataCount - 1;
-                    if (index < 0) continue;
-
-                    expandoDict[Inputs[idx].Name] = UnwrapGoo(branch[index]);
+                    // GH "repeat last item" semantics: shorter inputs clamp to their final element.
+                    var index = i < flat.Count ? i : flat.Count - 1;
+                    expandoDict[Inputs[idx].Name] = UnwrapGoo(flat[index]);
                 }
 
                 expandoList.Add(expandoObject);
@@ -148,28 +141,42 @@ namespace Betta
             return expandoList;
         }
 
+        /// <summary>
+        /// Flatten a GH data tree to a single ordered list of items across every branch (path order). Used to
+        /// read item/list-access inputs as one logical list, so a multi-branch tree is accepted (collapsed)
+        /// rather than rejected. The count matches <c>VolatileData.DataCount</c>, so item indexing stays aligned.
+        /// </summary>
+        private static List<object> FlattenBranches(IGH_Structure data)
+        {
+            var flat = new List<object>();
+            if (data == null) return flat;
+            for (int p = 0; p < data.PathCount; p++)
+            {
+                var branch = data.get_Branch(p);
+                if (branch == null) continue;
+                foreach (var item in branch) flat.Add(item);
+            }
+            return flat;
+        }
+
         public List<ExpandoObject> GetListData(List<ExpandoObject> expandoObjects)
         {
             var inputs = ParamServer.Where(x => x.Kind == GH_ParamKind.input).ToList();
-            // Same rule as GetItemData — tree inputs may carry many paths;
-            // list/item inputs may not. Empty (PathCount == 0) is allowed: an
-            // unwired optional list input just has no data.
-            if (inputs.Any(x => x.Access != GH_ParamAccess.tree && x.VolatileData.PathCount > 1))
-                throw new Exception("List inputs across multi-path trees are not supported yet");
+            // Same rule as GetItemData: a list-access input reads every branch flattened into one list, so a
+            // multi-branch tree is accepted (collapsed) rather than rejected. Tree-access params keep their tree.
 
             for (int idx = 0; idx < inputs.Count; idx++)
             {
                 var input = inputs[idx];
                 if (input.Access != GH_ParamAccess.list) continue;
 
-                // Empty/unwired optional list input: leave the arg absent so
-                // BuildArguments supplies its default (null).
-                if (input.VolatileDataCount == 0) continue;
+                // Empty/unwired optional list input: leave the arg absent so BuildArguments supplies its default.
+                var flat = FlattenBranches(input.VolatileData);
+                if (flat.Count == 0) continue;
 
-                var branch = input.VolatileData.get_Branch(0);
-                var paramValues = new List<dynamic>(branch.Count);
-                for (int j = 0; j < branch.Count; j++)
-                    paramValues.Add(UnwrapGoo(branch[j]));
+                var paramValues = new List<dynamic>(flat.Count);
+                foreach (var item in flat)
+                    paramValues.Add(UnwrapGoo(item));
 
                 foreach (var expandoObject in expandoObjects)
                     ((IDictionary<string, dynamic>)expandoObject)[Inputs[idx].Name] = paramValues;

@@ -11,7 +11,7 @@
 
     <!-- NuGet metadata -->
     <PackageId>Betta.Generators</PackageId>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
     <Title>Betta source generator</Title>
     <Authors>Konrad Zaremba</Authors>
     <Description>Compile-time Roslyn incremental generator for Betta plugins. Emits a Betta.Generated.BettaPluginBootstrap that Betta's runtime picks up as a fast-path descriptor manifest, skipping the reflection scan on load. Also emits BETTA001/BETTA010 diagnostics for unsupported parameter types and mismatched Name attributes. Optional — Betta's runtime reflection fallback works fine without it.</Description>

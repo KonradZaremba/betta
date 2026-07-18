@@ -58,7 +58,21 @@ dotnet build Betta.sln -c Debug
 - Debug launches Rhino 8 as `StartProgram` (path hardcoded to `C:\Program Files\Rhino 8\System\Rhino.exe`).
 - Tests must run x64 (`RuntimeIdentifier=win-x64` in TestBetta.csproj) because of `Rhino.Inside`. `xunit.runner.json` disables AppDomains and parallelization — required for Rhino to load exactly once.
 
-**Known issue**: `dotnet test` hits a `Failed to create CoreCLR` startup error on Windows, appears to be a vstest/testhost packaging issue on this machine. Tests pass via VS Test Explorer. Not a migration blocker.
+**`dotnet test` works.** It used to abort with `Failed to create CoreCLR, HRESULT: 0x80070057`; this was *not* a vstest/testhost packaging quirk. `Betta.csproj` set `<TargetExt>.gha</TargetExt>`, so the assembly was written into every referencing project's `deps.json` as `"Betta.gha"`, and `hostpolicy` rejects a non-`.dll` entry in `TRUSTED_PLATFORM_ASSEMBLIES` (`E_INVALIDARG`). Betta now compiles to `Betta.dll` and `_BettaWriteGha` copies it to `Betta.gha` — never revert to emitting `.gha` from the compiler, or the whole suite goes dark again. `Betta.dll` is deliberately excluded from the Libraries deploy and the yak payload: same assembly identity as `Betta.gha`, so shipping both double-loads the plugin.
+
+**Remaining test failures: 6 of 101** — the fixture-based tests (`TestBettaComponent`, `TestDifferentPrimitives`, `TestPrimitives`, 2 each). They construct a `RhinoCore` in-process and it fails with COM `E_FAIL`. Investigated in depth; **do not re-litigate these without reading this first**:
+
+- **Root cause: the resolver picks the wrong Rhino.** `Rhino.Inside 7.0.0` defaults `Resolver.UseLatest = false`, so with both **Rhino 7 and Rhino 8 installed** it resolves `C:\Program Files\Rhino 7\System` — while everything is compiled against RhinoCommon/Grasshopper `8.0.23304.9001`. That mismatch is the `E_FAIL`. The old note blaming "a vstest quirk" / "a non-interactive session" was wrong: the shell runs in interactive session 1, and closing Rhino changes nothing.
+- **`UseLatest = true` is NOT the fix.** It does resolve Rhino 8 and RhinoCore genuinely starts (~28s), but three more walls follow: Rhino 8 does not auto-load Grasshopper in-process (needs an explicit `PlugIn.LoadPlugIn(b45a29b1-4343-4035-989e-044e8580d9cf)`), `RhinoApp.GetPlugInObject("Grasshopper")` then returns a **`System.__ComObject`** rather than the managed `GH_RhinoScriptInterface` (so the cast in `GrasshopperFixture` yields null — it needs IDispatch late binding), and finally the in-process Rhino **crashes the test host**, which aborts the entire run (only ~32 of 101 tests report). Skipping the `[Fact]`s does not help — the collection fixture is constructed regardless. A fast clean `E_FAIL` costing 6 tests beats an aborted suite, so the default stands.
+- **Consequence:** `RhinoResolverInit`'s probe currently loads `Grasshopper.dll` from **Rhino 7**. Tolerated because .NET Core does not enforce strict version binding and the API surface used is compatible.
+- Their `.gh` files also still need re-saving against Rhino 8, so they may not pass even once Rhino starts.
+- Real fix is likely `Rhino.Inside` 8.x — which **does not exist on nuget.org** (verified; 7.0.0 is the only published version). Uninstalling Rhino 7 would also make `UseLatest=false` resolve Rhino 8, but the host-crash wall remains.
+
+`TestBetta/RhinoResolverInit.cs` is what makes the headless tests work, via `[ModuleInitializer]` (runs before any test body, satisfying the resolver's "no Rhino assembly loaded yet" requirement):
+- calls `GrasshopperSingleton.InitializeResolver()` so tests touching Grasshopper types don't route through `GrasshopperFixture` (which starts RhinoCore) purely to get assembly resolution;
+- adds an `AssemblyResolve` handler probing `<RhinoRoot>\Plug-ins\Grasshopper` — `RhinoInside.Resolver` only covers `\System` (RhinoCommon), so `Grasshopper.dll` / `GH_IO.dll` are otherwise unresolvable. The root is derived from `Resolver.RhinoSystemDirectory`, never hardcoded.
+
+`TestBetta` references `Betta.Preview` although no test uses it directly: `TestGeneratorBootstrap` loads the OpaqueDemo sample via `Assembly.LoadFrom`, and the sample deliberately does not redistribute `Betta.Preview` (`Private=false` + `ExcludeAssets=runtime`, as a real plugin author would). The reference puts the DLL on the test's probing path. Don't "clean up" that reference.
 
 ## Architecture
 

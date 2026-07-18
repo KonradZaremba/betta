@@ -52,13 +52,15 @@
       - BuildYak=true               (explicit opt-in)
       - Configuration=Release       (we never ship Debug binaries)
       - AssemblyName=Betta          (only the .gha project, not Abstractions/Strings/etc.)
-      - TargetExt=.gha              (belt-and-braces: Betta.gha specifically)
 
-    AfterTargets=Build so it runs after the normal output is in $(TargetDir).
+    Betta compiles to Betta.dll and the .gha is a copy of it made by
+    _BettaWriteGha (see Betta.csproj for why the compiler must not emit .gha
+    directly). AfterTargets=Build runs after that copy, so $(TargetDir)Betta.gha
+    exists by the time this target stages it.
   -->
   <Target Name="_BettaBuildYak"
           AfterTargets="Build"
-          Condition="'$(BuildYak)' == 'true' AND '$(Configuration)' == 'Release' AND '$(AssemblyName)' == 'Betta' AND '$(TargetExt)' == '.gha'">
+          Condition="'$(BuildYak)' == 'true' AND '$(Configuration)' == 'Release' AND '$(AssemblyName)' == 'Betta'">
 
     <Message Importance="high" Text="[Betta yak] Starting yak/zip packaging for Betta $(Version)" />
 
@@ -72,10 +74,13 @@
 
     <!-- 2. Stage the runtime payload. Conservative — just the bin/Release output
             that Grasshopper actually loads. Glob keeps us in sync if a new
-            transitive dependency lands without editing this file. -->
+            transitive dependency lands without editing this file.
+
+            Betta.dll is excluded: it is the same assembly as Betta.gha, and
+            shipping both would make Grasshopper load the plugin twice. -->
     <ItemGroup>
       <BettaYakPayload Include="$(TargetDir)Betta.gha" />
-      <BettaYakPayload Include="$(TargetDir)*.dll" />
+      <BettaYakPayload Include="$(TargetDir)*.dll" Exclude="$(TargetDir)$(AssemblyName).dll" />
       <BettaYakPayload Include="$(TargetDir)Betta.deps.json" Condition="Exists('$(TargetDir)Betta.deps.json')" />
       <BettaYakPayload Include="$(TargetDir)Betta.runtimeconfig.json" Condition="Exists('$(TargetDir)Betta.runtimeconfig.json')" />
     </ItemGroup>

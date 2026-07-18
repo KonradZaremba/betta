@@ -14,7 +14,7 @@
     <!-- NuGet package metadata -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>Betta.Preview</PackageId>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
     <Title>Betta.Preview</Title>
     <Authors>Konrad Zaremba</Authors>
     <Description>Optional preview hook for Betta opaque types — implement IBettaPreview on your domain type and Betta draws it in the Rhino viewport without a hand-written GH_Component / GH_Goo.</Description>

@@ -17,7 +17,7 @@
     <!-- NuGet package metadata -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>Betta.Abstractions</PackageId>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
     <Title>Betta.Abstractions</Title>
     <Authors>Konrad Zaremba</Authors>
     <Description>Public contract (attributes + marker interface) for authoring Betta plugins: zero-touch Grasshopper components from attributed C# service methods. Same silhouette, every fish is its own.</Description>

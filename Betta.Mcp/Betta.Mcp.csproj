@@ -24,7 +24,7 @@
     <!-- NuGet package metadata -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>Betta.Mcp</PackageId>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
     <Title>Betta.Mcp</Title>
     <Authors>Konrad Zaremba</Authors>
     <Description>Model Context Protocol (MCP) server that exposes the live state of a Betta Grasshopper installation to AI agents: loaded plugins, recent log lines, component descriptors, and signature validation. Run as a CLI or `dotnet tool`.</Description>

@@ -3,13 +3,12 @@
   <PropertyGroup>
     <TargetFramework>net7.0-windows</TargetFramework>
     <LangVersion>11</LangVersion>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
 
     <AssemblyName>Betta</AssemblyName>
     <RootNamespace>Betta</RootNamespace>
     <Title>Betta</Title>
     <Description>Same silhouette. Every fish is its own. Runtime adaptation for Grasshopper.</Description>
-    <TargetExt>.gha</TargetExt>
     <UseWpf>true</UseWpf>
     <UseWindowsForms>true</UseWindowsForms>
     <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -51,11 +50,43 @@
     <StartAction>Program</StartAction>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <PostBuildEvent>
-      xcopy /Q/Y "$(TargetDir)Betta.gha" "%AppData%\Grasshopper\Libraries\" &amp; xcopy /Q/Y "$(TargetDir)*.dll" "%AppData%\Grasshopper\Libraries\" &amp; exit /b 0
-    </PostBuildEvent>
-  </PropertyGroup>
+  <!--
+    Grasshopper loads plugins named *.gha, but the compiler must emit a plain
+    *.dll: with <TargetExt>.gha</TargetExt> the assembly is written into every
+    referencing project's deps.json as "Betta.gha", and hostpolicy rejects a
+    non-.dll entry in TRUSTED_PLATFORM_ASSEMBLIES — which killed the test host
+    with "Failed to create CoreCLR, HRESULT: 0x80070057" (E_INVALIDARG).
+
+    So Betta.gha is produced as a *copy* of Betta.dll. It runs after
+    CopyFilesToOutputDirectory (when TargetPath lands in TargetDir) and before
+    the deploy target below, which consumes it.
+  -->
+  <Target Name="_BettaWriteGha" AfterTargets="CopyFilesToOutputDirectory">
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)$(AssemblyName).gha" />
+  </Target>
+
+  <!--
+    Deploy to the Grasshopper Libraries folder. ContinueOnError mirrors the old
+    "exit /b 0": a file lock (Rhino holding the previous copy) leaves the
+    deployed copy stale rather than failing the build.
+
+    Betta.dll is excluded deliberately — it is the same assembly identity as
+    Betta.gha, and shipping both makes Grasshopper load the plugin twice.
+  -->
+  <Target Name="_BettaDeployToLibraries"
+          AfterTargets="_BettaWriteGha"
+          Condition="$([MSBuild]::IsOSPlatform(Windows))">
+    <PropertyGroup>
+      <_BettaLibrariesDir>$([System.Environment]::GetFolderPath(SpecialFolder.ApplicationData))\Grasshopper\Libraries</_BettaLibrariesDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_BettaDeployFiles Include="$(TargetDir)*.dll" Exclude="$(TargetDir)$(AssemblyName).dll" />
+      <_BettaDeployFiles Include="$(TargetDir)$(AssemblyName).gha" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_BettaDeployFiles)"
+          DestinationFolder="$(_BettaLibrariesDir)"
+          ContinueOnError="true" />
+  </Target>
 
   <Import Project="$(MSBuildThisFileDirectory)..\Betta.Build.targets" Condition="Exists('$(MSBuildThisFileDirectory)..\Betta.Build.targets')" />
 </Project>

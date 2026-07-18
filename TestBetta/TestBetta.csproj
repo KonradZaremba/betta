@@ -23,6 +23,12 @@
   
   <ItemGroup>
     <ProjectReference Include="..\Betta\Betta.csproj" />
+    <!-- Not referenced by test code. The OpaqueDemo sample is loaded via
+         Assembly.LoadFrom and its types reference Betta.Preview, but the sample
+         deliberately does not redistribute it (Private=false + ExcludeAssets=runtime,
+         exactly as a real plugin author would). Copying it next to TestBetta.dll
+         lets the default probing path resolve it. -->
+    <ProjectReference Include="..\Betta.Preview\Betta.Preview.csproj" />
   </ItemGroup>
   
   <ItemGroup>

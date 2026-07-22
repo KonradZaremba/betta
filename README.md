@@ -87,6 +87,8 @@ Sure, an LLM can author a full `GH_Component` from scratch — and it usually do
 
 ## Install
 
+> Current release: **0.7.0** — see [CHANGELOG.md](CHANGELOG.md) for what's new.
+
 1. Build `Betta.sln -c Release` (VS 2022 or CLI). The post-build copies `Betta.gha` + deps into `%AppData%\Grasshopper\Libraries\`.
 2. Launch Rhino 8 → Grasshopper — the **Betta** and sample **Strings** tabs appear on the ribbon.
 
@@ -102,7 +104,7 @@ Or grab the [latest release](../../releases) (drop-in `.zip` or Rhino Package Ma
 4. Build, drop the DLL into `%AppData%\Grasshopper\Libraries\Betta\`. Betta watches the folder and **hot-adds** it — no restart.
 
 ```xml
-<PackageReference Include="Betta.Abstractions" Version="0.3.1" ExcludeAssets="runtime" />
+<PackageReference Include="Betta.Abstractions" Version="0.7.0" ExcludeAssets="runtime" />
 ```
 
 ```csharp
@@ -227,6 +229,21 @@ async Task<double> SumAsync(List<double> xs, CancellationToken ct,
 ```
 
 `ct` cancels the moment the component re-solves (so stale work quits). `progress.Report(42)` updates the component's status tag — free progress UI.
+
+### Streaming outputs (`IObservable<T>`)
+
+Return an `IObservable<T>` and the component goes live: Betta subscribes on
+first solve (status shows *listening*), and every emission pushes the newest
+value through the output — re-solves are coalesced onto the UI thread, so a
+chatty source doesn't flood the canvas.
+
+```csharp
+[GrasshopperMethod("Sensor Feed")]
+IObservable<double> Temperature([GrasshopperParameter("Sensor")] string id);
+```
+
+Change a wired input and the old subscription is disposed and a fresh one
+opened; delete the component and the subscription is cleaned up with it.
 
 ### Per-instance state via menu (no extra wire)
 

@@ -26,45 +26,22 @@ namespace TestBetta
     /// </summary>
     public class TestGeneratorBootstrap
     {
-#if DEBUG
-        private const string Configuration = "Debug";
-#else
-        private const string Configuration = "Release";
-#endif
-
-        /// <summary>
-        /// Locate the OpaqueDemo DLL the build copied next to TestBetta.dll.
-        /// </summary>
-        private static Assembly LoadOpaqueDemo()
+        // The Betta.OpaqueDemo ProjectReference in TestBetta.csproj copies a
+        // fresh DLL next to TestBetta.dll on every build, so location is a
+        // single deterministic path — no probing of the sample's bin tree.
+        // Lazy: six tests share one load (LoadFrom caches by path anyway).
+        private static readonly Lazy<Assembly> _opaqueDemo = new(() =>
         {
             var here = Path.GetDirectoryName(typeof(TestGeneratorBootstrap).Assembly.Location);
-
-            // Walk up looking for the repo root (the folder holding samples/) rather
-            // than counting ".." hops: the output path gains an extra segment when
-            // RuntimeIdentifier is set (bin/Debug/net7.0-windows/win-x64), so a fixed
-            // depth silently misses the sample and reports it as "not built".
             var path = Path.Combine(here ?? "", "Betta.OpaqueDemo.dll");
             if (!File.Exists(path))
-            {
-                path = null;
-                for (var dir = new DirectoryInfo(here ?? "."); dir != null; dir = dir.Parent)
-                {
-                    var sample = Path.Combine(dir.FullName, "samples", "Betta.OpaqueDemo", "bin");
-                    if (!Directory.Exists(sample)) continue;
-
-                    // Prefer the configuration this test was built in, but accept the other.
-                    path = Directory.EnumerateFiles(sample, "Betta.OpaqueDemo.dll", SearchOption.AllDirectories)
-                        .OrderByDescending(p => p.Contains($"{Path.DirectorySeparatorChar}{Configuration}{Path.DirectorySeparatorChar}"))
-                        .ThenByDescending(File.GetLastWriteTimeUtc)
-                        .FirstOrDefault();
-                    break;
-                }
-            }
-
-            if (path is null || !File.Exists(path))
-                throw new FileNotFoundException("Could not locate Betta.OpaqueDemo.dll. Build the OpaqueDemo sample first.");
+                throw new FileNotFoundException(
+                    $"Betta.OpaqueDemo.dll not found beside TestBetta.dll ({path}). " +
+                    "Check the Betta.OpaqueDemo ProjectReference in TestBetta.csproj.");
             return Assembly.LoadFrom(path);
-        }
+        });
+
+        private static Assembly LoadOpaqueDemo() => _opaqueDemo.Value;
 
         [Fact]
         public void BootstrapTypeIsEmitted()

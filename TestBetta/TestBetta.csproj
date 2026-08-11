@@ -29,6 +29,13 @@
          exactly as a real plugin author would). Copying it next to TestBetta.dll
          lets the default probing path resolve it. -->
     <ProjectReference Include="..\Betta.Preview\Betta.Preview.csproj" />
+    <!-- Also not referenced by test code: puts a FRESH Betta.OpaqueDemo.dll next
+         to TestBetta.dll so TestGeneratorBootstrap can LoadFrom it without
+         probing the sample's bin tree (which could pick up a stale build). -->
+    <ProjectReference Include="..\samples\Betta.OpaqueDemo\Betta.OpaqueDemo.csproj" />
+    <!-- The Betta.Files pilot colony: referenced by TestFileToolkit for headless
+         discovery + watcher/read/write coverage. -->
+    <ProjectReference Include="..\samples\Betta.Files\Betta.Files.csproj" />
   </ItemGroup>
   
   <ItemGroup>

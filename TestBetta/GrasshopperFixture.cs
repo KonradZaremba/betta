@@ -4,6 +4,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System;
+using System.IO;
+using System.Reflection;
 using Xunit;
 
 namespace Rhino.Test
@@ -102,16 +104,47 @@ namespace Rhino.Test
       // are loaded before the resolver is set up. Avoid creating other static functions
       // and members which may reference Rhino assemblies, as that may cause those
       // assemblies to be loaded before this is called.
-      if (!_isResolverInitialized)
-      {
-        RhinoInside.Resolver.Initialize();
-        _isResolverInitialized = true;
-      }
+      InitializeResolver();
     }
+
+    /// <summary>
+    /// THE single entry point for assembly resolution: after this returns, both
+    /// RhinoCommon (via RhinoInside.Resolver, from &lt;Rhino&gt;\System) and
+    /// Grasshopper/GH_IO (via the Plug-ins probe below — the resolver does not
+    /// cover them) are resolvable. Idempotent; safe from any call site.
+    /// </summary>
     public static void InitializeResolver()
     {
-      if (!_isResolverInitialized) RhinoInside.Resolver.Initialize();
+      if (_isResolverInitialized) return;
+      RhinoInside.Resolver.Initialize();
+      AppDomain.CurrentDomain.AssemblyResolve += ResolveFromRhinoPlugins;
       _isResolverInitialized = true;
+    }
+
+    private static string _rhinoPluginsGrasshopperDir;
+
+    // RhinoInside.Resolver only covers Rhino's System folder; Grasshopper.dll /
+    // GH_IO.dll live in Plug-ins\Grasshopper, so tests touching a GH type
+    // without a running Rhino (Param_BettaGoo<T>, say) need this probe. The
+    // directory follows whichever Rhino the resolver picked; never hardcoded.
+    private static Assembly ResolveFromRhinoPlugins(object sender, ResolveEventArgs args)
+    {
+      var name = new AssemblyName(args.Name).Name;
+      // Satellite-assembly probes fire often and can never live there.
+      if (name == null || name.EndsWith(".resources", StringComparison.Ordinal)) return null;
+
+      if (_rhinoPluginsGrasshopperDir == null)
+      {
+        var system = RhinoInside.Resolver.RhinoSystemDirectory;
+        if (string.IsNullOrEmpty(system)) return null;
+        var root = Path.GetDirectoryName(
+          system.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (root == null) return null;
+        _rhinoPluginsGrasshopperDir = Path.Combine(root, "Plug-ins", "Grasshopper");
+      }
+
+      var candidate = Path.Combine(_rhinoPluginsGrasshopperDir, name + ".dll");
+      return File.Exists(candidate) ? Assembly.LoadFrom(candidate) : null;
     }
     private object _Core = null;
     private object _GHPlugin = null;

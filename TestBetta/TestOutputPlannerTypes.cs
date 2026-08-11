@@ -6,9 +6,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using System.Reflection;
 using Betta;
-using Betta.Attributes;
 using Xunit;
 
 namespace TestBetta
@@ -129,13 +127,13 @@ namespace TestBetta
             // not explode further — Graph stays OpaqueGraph, Related stays a list.
             var plans = Plan(nameof(IReturnTypeSamples.MakeReport));
 
-            var graph = Assert.Single(plans.Where(p => p.Name == nameof(GraphReport.Graph)));
+            var graph = Assert.Single(plans, p => p.Name == nameof(GraphReport.Graph));
             Assert.Equal(typeof(OpaqueGraph), graph.Type);
             Assert.False(graph.IsList);
 
             // A list output carries its declared type (List<T>) with IsList set —
             // matching how a top-level List<T> return is planned.
-            var related = Assert.Single(plans.Where(p => p.Name == nameof(GraphReport.Related)));
+            var related = Assert.Single(plans, p => p.Name == nameof(GraphReport.Related));
             Assert.Equal(typeof(List<OpaqueGraph>), related.Type);
             Assert.True(related.IsList);
 

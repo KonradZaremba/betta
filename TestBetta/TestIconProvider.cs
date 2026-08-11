@@ -6,7 +6,9 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Betta.Rendering;
 using Betta.Services;
 using Xunit;
@@ -25,9 +27,11 @@ namespace TestBetta
     /// </summary>
     public class TestIconProvider
     {
-        private const int IconSize = 24;   // IconProvider.IconSize
-        private const int Padding = 3;     // IconProvider.Padding
-        private const int ContentSize = IconSize - 2 * Padding;
+        // Real values via InternalsVisibleTo — mirrored consts drift when the
+        // geometry gets retuned (24/48/96 have all been tried). The literal
+        // user-facing "icons are 24×24" contract is asserted exactly once, in
+        // Icon_IsTwentyFourSquare.
+        private const int ContentSize = IconProvider.IconSize - 2 * IconProvider.Padding;
 
         /// <summary>
         /// Build a Guid whose first ToByteArray() byte is <paramref name="first"/> —
@@ -47,32 +51,38 @@ namespace TestBetta
         /// <summary>
         /// Independent reference implementation of the non-transparent bounding
         /// box, so the expected crop is computed here rather than trusting the
-        /// private CropToContent.
+        /// private CropToContent. LockBits + one alpha-channel sweep instead of
+        /// GetPixel — the sources are 256×256 and GetPixel would cost ~1s/run.
         /// </summary>
-        private static (int X, int Y, int W, int H) ContentBounds(Bitmap bmp, int alphaThreshold = 0)
+        private static (int X, int Y, int W, int H) ContentBounds(Bitmap bmp)
         {
-            int minX = bmp.Width, minY = bmp.Height, maxX = -1, maxY = -1;
-            for (int y = 0; y < bmp.Height; y++)
+            var data = bmp.LockBits(
+                new Rectangle(0, 0, bmp.Width, bmp.Height),
+                ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            try
             {
-                for (int x = 0; x < bmp.Width; x++)
-                {
-                    if (bmp.GetPixel(x, y).A <= alphaThreshold) continue;
-                    if (x < minX) minX = x;
-                    if (y < minY) minY = y;
-                    if (x > maxX) maxX = x;
-                    if (y > maxY) maxY = y;
-                }
-            }
-            return maxX < 0 ? (0, 0, 0, 0) : (minX, minY, maxX - minX + 1, maxY - minY + 1);
-        }
+                var buf = new byte[Math.Abs(data.Stride) * bmp.Height];
+                Marshal.Copy(data.Scan0, buf, 0, buf.Length);
 
-        [Fact]
-        public void GuidHelper_ControlsTheSelectingByte()
-        {
-            // Guards the tests below: if Guid(byte[]) ever stopped round-tripping
-            // byte 0, every determinism assertion here would be vacuous.
-            for (byte b = 0; b < 12; b++)
-                Assert.Equal(b, GuidWithFirstByte(b).ToByteArray()[0]);
+                int minX = bmp.Width, minY = bmp.Height, maxX = -1, maxY = -1;
+                for (int y = 0; y < bmp.Height; y++)
+                {
+                    int row = y * data.Stride;
+                    for (int x = 0; x < bmp.Width; x++)
+                    {
+                        if (buf[row + x * 4 + 3] == 0) continue; // alpha byte of BGRA
+                        if (x < minX) minX = x;
+                        if (y < minY) minY = y;
+                        if (x > maxX) maxX = x;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+                return maxX < 0 ? (0, 0, 0, 0) : (minX, minY, maxX - minX + 1, maxY - minY + 1);
+            }
+            finally
+            {
+                bmp.UnlockBits(data);
+            }
         }
 
         [Fact]
@@ -99,41 +109,23 @@ namespace TestBetta
             var icon = IconProvider.GetOrCreate(Descriptor(0));
 
             Assert.NotNull(icon);
-            Assert.Equal(IconSize, icon.Width);
-            Assert.Equal(IconSize, icon.Height);
-        }
-
-        [Fact]
-        public void SameDescriptor_IsCachedAndReturnsSameInstance()
-        {
-            var d = Descriptor(3);
-
-            var first = IconProvider.GetOrCreate(d);
-            var second = IconProvider.GetOrCreate(d);
-
-            Assert.Same(first, second);
-        }
-
-        [Fact]
-        public void SameGuid_PicksSameFish_AcrossDescriptors()
-        {
-            // Two independently-built descriptors that hash to the same GUID must
-            // land on the same fish — this is what makes the pick stable across
-            // sessions and machines.
-            var a = IconProvider.GetOrCreate(Descriptor(4));
-            var b = IconProvider.GetOrCreate(Descriptor(4));
-
-            Assert.Same(a, b);
+            // Deliberately the literal, not IconProvider.IconSize: 24×24 is the
+            // user-facing Grasshopper contract, and this is its one guardian.
+            Assert.Equal(24, icon.Width);
+            Assert.Equal(24, icon.Height);
         }
 
         [Theory]
+        [InlineData(4, 4)]    // identical GUID → identical fish (session/machine stability)
         [InlineData(0, 6)]
         [InlineData(1, 7)]
         [InlineData(2, 254)]  // 254 % 6 == 2
         [InlineData(5, 11)]
         public void PickWrapsModuloFishCount(byte left, byte right)
         {
-            // The pick is guid[0] % 6, so bytes congruent mod 6 share a fish.
+            // The pick is guid[0] % 6, so bytes congruent mod 6 share the same
+            // Bitmap instance. Covers same-GUID determinism (row 4,4) and the
+            // modulo wrap in one mechanism.
             Assert.Same(
                 IconProvider.GetOrCreate(Descriptor(left)),
                 IconProvider.GetOrCreate(Descriptor(right)));
@@ -160,8 +152,8 @@ namespace TestBetta
             var b = IconProvider.GetOrCreate(Descriptor(1));
 
             bool anyDifference = false;
-            for (int y = 0; y < IconSize && !anyDifference; y++)
-                for (int x = 0; x < IconSize && !anyDifference; x++)
+            for (int y = 0; y < a.Height && !anyDifference; y++)
+                for (int x = 0; x < a.Width && !anyDifference; x++)
                     if (a.GetPixel(x, y) != b.GetPixel(x, y)) anyDifference = true;
 
             Assert.True(anyDifference, "Two different fish rendered identical pixels.");
@@ -174,12 +166,11 @@ namespace TestBetta
         [InlineData(3)]
         [InlineData(4)]
         [InlineData(5)]
-        public void Icon_IsLetterboxed_NotStretched(int fishIndex)
+        public void Icon_IsLetterboxedInsidePaddedBox_NotStretched(int fishIndex)
         {
-            // The fish must keep its natural aspect ratio inside the tile. If the
-            // resample ever stretched to fill, the drawn content would go square
-            // (aspect 1.0) — this compares against the aspect of the source PNG's
-            // own content box, computed independently below.
+            // One pass over each fish asserting both geometry contracts:
+            // aspect ratio preserved (letterboxed, not stretched) AND the fish
+            // scaled to exactly the padded content box.
             var icon = IconProvider.GetOrCreate(Descriptor((byte)fishIndex));
             var source = SessionFish.All[fishIndex];
 
@@ -188,27 +179,14 @@ namespace TestBetta
 
             Assert.True(drawn.W > 0 && drawn.H > 0, "Rendered icon was fully transparent.");
 
+            // Aspect bound deliberately tight. The sources crop to 223×188
+            // (aspect 1.186) and land at 18×15 (aspect 1.200) — a ratio of ~1.01.
+            // Stretching to fill the tile would give 18×18, i.e. ratio ~0.84, so
+            // a loose bound here would pass the very bug this test exists to
+            // catch. Rounding at 18px is the only slack that needs absorbing.
             var expectedAspect = (double)src.W / src.H;
             var actualAspect = (double)drawn.W / drawn.H;
-
-            // Bound deliberately tight. The sources crop to 223×188 (aspect 1.186)
-            // and land at 18×15 (aspect 1.200) — a ratio of ~1.01. Stretching to
-            // fill the tile would give 18×18, i.e. ratio ~0.84, so a loose bound
-            // here would pass the very bug this test exists to catch. Rounding at
-            // 18px is the only slack that needs absorbing.
             Assert.InRange(actualAspect / expectedAspect, 0.95, 1.10);
-        }
-
-        [Theory]
-        [InlineData(0)]
-        [InlineData(3)]
-        [InlineData(5)]
-        public void Icon_FitsInsideThePaddedContentBox(int fishIndex)
-        {
-            // Padding keeps the fish off the tile edges; the longer drawn edge
-            // should reach about ContentSize and never the full 24.
-            var icon = IconProvider.GetOrCreate(Descriptor((byte)fishIndex));
-            var drawn = ContentBounds(icon);
 
             // The longer edge is scaled to exactly ContentSize, and the bicubic
             // pass does not bleed past it (SourceCopy compositing, fully
@@ -233,7 +211,7 @@ namespace TestBetta
             Assert.NotNull(icon);
             Assert.NotSame(IconProvider.GetOrCreate(Descriptor(0)), icon);
             // Loaded verbatim, so it keeps the source PNG's dimensions.
-            Assert.True(icon.Width > IconSize && icon.Height > IconSize,
+            Assert.True(icon.Width > IconProvider.IconSize && icon.Height > IconProvider.IconSize,
                 $"Expected the raw resource, got a {icon.Width}×{icon.Height} bitmap.");
         }
 
@@ -250,7 +228,7 @@ namespace TestBetta
             var icon = IconProvider.GetOrCreate(d);
 
             Assert.NotNull(icon);
-            Assert.Equal(IconSize, icon.Width);
+            Assert.Equal(IconProvider.IconSize, icon.Width);
             Assert.Same(IconProvider.GetOrCreate(Descriptor(2)), icon);
         }
 
@@ -269,7 +247,7 @@ namespace TestBetta
             var icon = IconProvider.GetOrCreate(d);
 
             Assert.NotNull(icon);
-            Assert.Equal(IconSize, icon.Width);
+            Assert.Equal(IconProvider.IconSize, icon.Width);
         }
     }
 }

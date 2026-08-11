@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Betta.Files — the pilot "colony": a standalone, downloadable Betta
+    collection (a themed toolkit) built entirely from attributed C# methods.
+    Pure logic: NO Grasshopper / Rhino references — services stay
+    framework-agnostic, and Betta.gha supplies the abstractions at load time.
+
+    Abstractions is a PROJECT reference (Private=false, ExcludeAssets=runtime)
+    rather than a NuGet package so the pilot builds straight from the repo
+    without first packing a matching version. When this is lifted into its own
+    "colony" repo, swap it for a PackageReference like the other samples.
+
+    Build + deploy:  dotnet build samples/Betta.Files/Betta.Files.csproj
+    (post-build copies Betta.Files.dll into %AppData%\Grasshopper\Libraries\Betta\)
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <AssemblyName>Betta.Files</AssemblyName>
+    <RootNamespace>Betta.Files</RootNamespace>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Betta.Abstractions\Betta.Abstractions.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PostBuildEvent>
+      xcopy /Q/Y "$(TargetDir)Betta.Files.dll" "%25AppData%25\Grasshopper\Libraries\Betta\" &amp; exit /b 0
+    </PostBuildEvent>
+  </PropertyGroup>
+
+</Project>

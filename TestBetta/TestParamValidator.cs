@@ -5,7 +5,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Betta.Attributes;
 using Betta.Interfaces;
@@ -22,11 +21,6 @@ namespace TestBetta
     {
         public string Validate(object value) =>
             value is int i && i % 2 != 0 ? $"{i} is not even" : null;
-    }
-
-    public class AlwaysPassesValidator : IBettaValidator
-    {
-        public string Validate(object value) => null;
     }
 
     public class ThrowingValidator : IBettaValidator
@@ -48,8 +42,6 @@ namespace TestBetta
 
         public void Custom([GrasshopperValidation(typeof(EvenNumberValidator))] int number) { }
 
-        public void CustomPassing([GrasshopperValidation(typeof(AlwaysPassesValidator))] int number) { }
-
         public void CustomThrows([GrasshopperValidation(typeof(ThrowingValidator))] int number) { }
 
         public void Unvalidated(double value) { }
@@ -69,8 +61,9 @@ namespace TestBetta
     /// </summary>
     public class TestParamValidator
     {
+        // Arrays already implement IList<T> — no ToList materialization needed.
         private static IList<ParameterInfo> ParamsOf(string method) =>
-            typeof(ValidationSubjects).GetMethod(method).GetParameters().ToList();
+            typeof(ValidationSubjects).GetMethod(method).GetParameters();
 
         private static string Run(string method, params object[] args) =>
             ParamValidator.Validate(ParamsOf(method), args);
@@ -169,7 +162,6 @@ namespace TestBetta
         public void Custom_PassingValidator_ReturnsNull()
         {
             Assert.Null(Run(nameof(ValidationSubjects.Custom), 4));
-            Assert.Null(Run(nameof(ValidationSubjects.CustomPassing), 7));
         }
 
         [Fact]

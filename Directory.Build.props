@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Single source of truth for the release version. Individual csproj files
+    must NOT set <Version> — a per-file bump across seven projects is how
+    mismatched package versions ship (and the yak manifest reads $(Version)
+    from the Betta project, so a missed bump there mislabels the .yak).
+    A project that genuinely needs to diverge can still override locally.
+  -->
+  <PropertyGroup>
+    <Version>0.7.2</Version>
+  </PropertyGroup>
+</Project>

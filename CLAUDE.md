@@ -43,7 +43,7 @@ Solution file is still at the (legacy) path `Betta/Betta.sln` — the solution f
 dotnet pack Betta.Abstractions/Betta.Abstractions.csproj -c Release
 ```
 
-Output: `./artifacts/Betta.Abstractions.<Version>.nupkg` + matching `.snupkg`. The artifacts folder is gitignored. Publish with `dotnet nuget push`. Bump `<Version>` in the csproj before each release. The package's icon is `media/NBTabBettaMini_Cosmic.png` (mapped via `<None Include=... Pack="true" PackagePath="icon.png" />`); the package readme is the local `Betta.Abstractions/README.md` (separate from the repo root README).
+Output: `./artifacts/Betta.Abstractions.<Version>.nupkg` + matching `.snupkg`. The artifacts folder is gitignored. Publish with `dotnet nuget push`. The version is set ONCE in the repo-root `Directory.Build.props` (`<Version>`); individual csproj files must not set it. Bump it there before each release. The package's icon is `media/NBTabBettaMini_Cosmic.png` (mapped via `<None Include=... Pack="true" PackagePath="icon.png" />`); the package readme is the local `Betta.Abstractions/README.md` (separate from the repo root README).
 
 Don't pack `Betta.gha` or `Betta.Strings` — they aren't designed as NuGet payloads (Betta.gha is a Grasshopper plugin, Betta.Strings is sample art).
 
@@ -58,7 +58,7 @@ dotnet build Betta.sln -c Debug
 - Debug launches Rhino 8 as `StartProgram` (path hardcoded to `C:\Program Files\Rhino 8\System\Rhino.exe`).
 - Tests must run x64 (`RuntimeIdentifier=win-x64` in TestBetta.csproj) because of `Rhino.Inside`. `xunit.runner.json` disables AppDomains and parallelization — required for Rhino to load exactly once.
 
-**`dotnet test` works.** It used to abort with `Failed to create CoreCLR, HRESULT: 0x80070057`; this was *not* a vstest/testhost packaging quirk. `Betta.csproj` set `<TargetExt>.gha</TargetExt>`, so the assembly was written into every referencing project's `deps.json` as `"Betta.gha"`, and `hostpolicy` rejects a non-`.dll` entry in `TRUSTED_PLATFORM_ASSEMBLIES` (`E_INVALIDARG`). Betta now compiles to `Betta.dll` and `_BettaWriteGha` copies it to `Betta.gha` — never revert to emitting `.gha` from the compiler, or the whole suite goes dark again. `Betta.dll` is deliberately excluded from the Libraries deploy and the yak payload: same assembly identity as `Betta.gha`, so shipping both double-loads the plugin.
+**`dotnet test` works.** It used to abort with `Failed to create CoreCLR, HRESULT: 0x80070057`; this was *not* a vstest/testhost packaging quirk. `Betta.csproj` set `<TargetExt>.gha</TargetExt>`, so the assembly was written into every referencing project's `deps.json` as `"Betta.gha"`, and `hostpolicy` rejects a non-`.dll` entry in `TRUSTED_PLATFORM_ASSEMBLIES` (`E_INVALIDARG`). Betta now compiles to `Betta.dll` and `_BettaWriteGha` (in `Betta.Build.targets`, alongside the Libraries deploy and yak packaging — the shared `BettaRuntimePayload` item is the single definition of what ships) copies it to `Betta.gha` — never revert to emitting `.gha` from the compiler, or the whole suite goes dark again. `Betta.dll` is deliberately excluded from the Libraries deploy and the yak payload: same assembly identity as `Betta.gha`, so shipping both double-loads the plugin.
 
 **Remaining test failures: 6 of 101** — the fixture-based tests (`TestBettaComponent`, `TestDifferentPrimitives`, `TestPrimitives`, 2 each). They construct a `RhinoCore` in-process and it fails with COM `E_FAIL`. Investigated in depth; **do not re-litigate these without reading this first**:
 
@@ -68,11 +68,11 @@ dotnet build Betta.sln -c Debug
 - Their `.gh` files also still need re-saving against Rhino 8, so they may not pass even once Rhino starts.
 - Real fix is likely `Rhino.Inside` 8.x — which **does not exist on nuget.org** (verified; 7.0.0 is the only published version). Uninstalling Rhino 7 would also make `UseLatest=false` resolve Rhino 8, but the host-crash wall remains.
 
-`TestBetta/RhinoResolverInit.cs` is what makes the headless tests work, via `[ModuleInitializer]` (runs before any test body, satisfying the resolver's "no Rhino assembly loaded yet" requirement):
-- calls `GrasshopperSingleton.InitializeResolver()` so tests touching Grasshopper types don't route through `GrasshopperFixture` (which starts RhinoCore) purely to get assembly resolution;
-- adds an `AssemblyResolve` handler probing `<RhinoRoot>\Plug-ins\Grasshopper` — `RhinoInside.Resolver` only covers `\System` (RhinoCommon), so `Grasshopper.dll` / `GH_IO.dll` are otherwise unresolvable. The root is derived from `Resolver.RhinoSystemDirectory`, never hardcoded.
+Headless assembly resolution lives in **`GrasshopperSingleton.InitializeResolver()`** (`TestBetta/GrasshopperFixture.cs`) — the single entry point that makes BOTH RhinoCommon (via `RhinoInside.Resolver`, from `<Rhino>\System`) and `Grasshopper.dll`/`GH_IO.dll` (via an `AssemblyResolve` probe of `<RhinoRoot>\Plug-ins\Grasshopper`; root derived from `Resolver.RhinoSystemDirectory`, never hardcoded) resolvable. `TestBetta/RhinoResolverInit.cs` contributes only the **timing**: its `[ModuleInitializer]` calls `InitializeResolver()` before any test body, satisfying the resolver's "no Rhino assembly loaded yet" requirement.
 
-`TestBetta` references `Betta.Preview` although no test uses it directly: `TestGeneratorBootstrap` loads the OpaqueDemo sample via `Assembly.LoadFrom`, and the sample deliberately does not redistribute `Betta.Preview` (`Private=false` + `ExcludeAssets=runtime`, as a real plugin author would). The reference puts the DLL on the test's probing path. Don't "clean up" that reference.
+`TestBetta` carries two ProjectReferences no test code uses directly — don't "clean up" either:
+- `Betta.Preview`: `TestGeneratorBootstrap` loads the OpaqueDemo sample via `Assembly.LoadFrom`, and the sample deliberately does not redistribute `Betta.Preview` (`Private=false` + `ExcludeAssets=runtime`, as a real plugin author would). The reference puts the DLL on the test's probing path.
+- `Betta.OpaqueDemo`: copies a fresh sample DLL next to `TestBetta.dll` so `LoadOpaqueDemo` is a single deterministic path instead of probing the sample's bin tree (which could pick up a stale build).
 
 ## Architecture
 

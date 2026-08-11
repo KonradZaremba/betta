@@ -3,6 +3,28 @@
 All notable changes to Betta are documented here. Versions follow
 [SemVer](https://semver.org); the format follows [Keep a Changelog](https://keepachangelog.com).
 
+## [0.7.2] — 2026-08-11
+
+### Added
+- **`Betta.Files` sample colony** — the first "watch-first" toolkit built entirely
+  from attributed methods: a debounced live folder/file watcher (`IObservable`)
+  plus read/write/split/find utilities. Split across `Files › Watch` and
+  `Files › IO`. Showcases streaming, class-return explosion, async, validation
+  and menu-state in one small downloadable collection.
+- **Expanded headless test coverage** — input coercion, special-parameter
+  detectors, plugin-trust policy, param-vector mapping, and the streaming ticker,
+  plus discovery/output-shape/watcher tests for `Betta.Files`.
+
+### Changed
+- **Single-source versioning** — the release version now lives only in
+  `Directory.Build.props`; individual project files no longer set `<Version>`.
+
+### Fixed
+- **Drop-in `.zip` payload** — the Food4Rhino drop-in zip now ships the full
+  runtime payload (all `Microsoft.Extensions.*` dependencies), matching the `.yak`
+  and the Libraries deploy. It previously shipped only `Betta.gha` +
+  `Betta.Abstractions.dll`, which fails to load on a clean machine.
+
 ## [0.7.0] — 2026-07-22
 
 ### Added
@@ -23,10 +45,9 @@ All notable changes to Betta are documented here. Versions follow
   via `<TargetExt>`, which wrote `"Betta.gha"` into every referencing
   project's `deps.json`. The .NET host rejects a non-`.dll` entry in the
   trusted assembly list, so any consumer's test host died with
-  `Failed to create CoreCLR, HRESULT: 0x80070057`. Betta now compiles to
-  `Betta.dll` and produces `Betta.gha` as a build-time copy.
-- `dotnet test` works from the CLI for the first time (previously the whole
-  suite aborted before running a single test).
+  `Failed to create CoreCLR, HRESULT: 0x80070057` before running a single
+  test. Betta now compiles to `Betta.dll` and produces `Betta.gha` as a
+  build-time copy — `dotnet test` works from the CLI for the first time.
 
 ### Changed
 - The Grasshopper Libraries deploy and the yak/zip payloads exclude

@@ -38,9 +38,11 @@ namespace Betta.Services
     /// </summary>
     public static class IconProvider
     {
-        private const int IconSize = 24;
+        // IconSize and Padding are internal (not private) so TestBetta asserts
+        // against the real values rather than mirroring them.
+        internal const int IconSize = 24;
         private const int InterimSize = 64; // for the two-step downscale
-        private const int Padding = 3;      // margin inside the tile so the fish
+        internal const int Padding = 3;     // margin inside the tile so the fish
                                             // sits at "regular" icon size rather
                                             // than filling edge-to-edge
 

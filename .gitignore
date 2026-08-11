@@ -349,8 +349,11 @@ MigrationBackup/
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
 
-# docs/ — WIP site, decks, and generated artifacts (not tracked for now)
-docs/
+# docs/ — WIP site, decks, and generated artifacts (not tracked for now).
+# docs/* (not docs/) so specific prose can be re-included below; a whole-dir
+# ignore can't be undone by a later "!" because git won't descend into it.
+docs/*
+!docs/testing-brief.md
 
 # Claude Code chat logs — never tracked
 chat-history/

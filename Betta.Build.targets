@@ -46,6 +46,59 @@
   </PropertyGroup>
 
   <!--
+    _BettaWriteGha: Grasshopper loads plugins named *.gha, but the compiler must
+    emit a plain *.dll — with <TargetExt>.gha</TargetExt> the assembly was
+    written into every referencing project's deps.json as "Betta.gha", and
+    hostpolicy rejects a non-.dll entry in TRUSTED_PLATFORM_ASSEMBLIES, killing
+    the test host with "Failed to create CoreCLR, HRESULT: 0x80070057".
+    So Betta.gha is produced as a copy of Betta.dll, right after the compiled
+    output lands in $(TargetDir). Inputs/Outputs skip the copy when up to date.
+  -->
+  <Target Name="_BettaWriteGha"
+          AfterTargets="CopyFilesToOutputDirectory"
+          Condition="'$(AssemblyName)' == 'Betta'"
+          Inputs="$(TargetPath)"
+          Outputs="$(TargetDir)$(AssemblyName).gha">
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFiles="$(TargetDir)$(AssemblyName).gha"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <!--
+    _BettaComputePayload: THE single definition of the runtime payload — what a
+    Grasshopper install actually loads. Consumed by both the Libraries deploy
+    below and the yak staging, so the two channels cannot drift.
+
+    Betta.dll is excluded deliberately: it is the same assembly identity as
+    Betta.gha, and shipping both makes Grasshopper load the plugin twice.
+  -->
+  <Target Name="_BettaComputePayload" Condition="'$(AssemblyName)' == 'Betta'">
+    <ItemGroup>
+      <BettaRuntimePayload Include="$(TargetDir)$(AssemblyName).gha" />
+      <BettaRuntimePayload Include="$(TargetDir)*.dll" Exclude="$(TargetDir)$(AssemblyName).dll" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    _BettaDeployToLibraries: copy the runtime payload into the Grasshopper
+    Libraries folder on every build. ContinueOnError mirrors the old
+    "exit /b 0": a file lock (Rhino holding the previous copy) leaves the
+    deployed copy stale rather than failing the build.
+  -->
+  <Target Name="_BettaDeployToLibraries"
+          AfterTargets="_BettaWriteGha"
+          DependsOnTargets="_BettaComputePayload"
+          Condition="'$(AssemblyName)' == 'Betta'">
+    <PropertyGroup>
+      <_BettaLibrariesDir>$([System.Environment]::GetFolderPath(SpecialFolder.ApplicationData))\Grasshopper\Libraries</_BettaLibrariesDir>
+    </PropertyGroup>
+    <Copy SourceFiles="@(BettaRuntimePayload)"
+          DestinationFolder="$(_BettaLibrariesDir)"
+          SkipUnchangedFiles="true"
+          ContinueOnError="true" />
+  </Target>
+
+  <!--
     _BettaBuildYak: the orchestrating target.
 
     Conditions, all required:
@@ -53,13 +106,12 @@
       - Configuration=Release       (we never ship Debug binaries)
       - AssemblyName=Betta          (only the .gha project, not Abstractions/Strings/etc.)
 
-    Betta compiles to Betta.dll and the .gha is a copy of it made by
-    _BettaWriteGha (see Betta.csproj for why the compiler must not emit .gha
-    directly). AfterTargets=Build runs after that copy, so $(TargetDir)Betta.gha
+    AfterTargets=Build runs after _BettaWriteGha, so $(TargetDir)Betta.gha
     exists by the time this target stages it.
   -->
   <Target Name="_BettaBuildYak"
           AfterTargets="Build"
+          DependsOnTargets="_BettaComputePayload"
           Condition="'$(BuildYak)' == 'true' AND '$(Configuration)' == 'Release' AND '$(AssemblyName)' == 'Betta'">
 
     <Message Importance="high" Text="[Betta yak] Starting yak/zip packaging for Betta $(Version)" />
@@ -72,15 +124,10 @@
     <MakeDir Directories="$(BettaArtifactsDir)" />
     <Message Importance="high" Text="[Betta yak] Staging dir: $(BettaYakStagingDir)" />
 
-    <!-- 2. Stage the runtime payload. Conservative — just the bin/Release output
-            that Grasshopper actually loads. Glob keeps us in sync if a new
-            transitive dependency lands without editing this file.
-
-            Betta.dll is excluded: it is the same assembly as Betta.gha, and
-            shipping both would make Grasshopper load the plugin twice. -->
+    <!-- 2. Stage the runtime payload (shared _BettaComputePayload definition),
+            plus the host-config files only the yak channel needs. -->
     <ItemGroup>
-      <BettaYakPayload Include="$(TargetDir)Betta.gha" />
-      <BettaYakPayload Include="$(TargetDir)*.dll" Exclude="$(TargetDir)$(AssemblyName).dll" />
+      <BettaYakPayload Include="@(BettaRuntimePayload)" />
       <BettaYakPayload Include="$(TargetDir)Betta.deps.json" Condition="Exists('$(TargetDir)Betta.deps.json')" />
       <BettaYakPayload Include="$(TargetDir)Betta.runtimeconfig.json" Condition="Exists('$(TargetDir)Betta.runtimeconfig.json')" />
     </ItemGroup>
@@ -152,19 +199,21 @@
     <Warning Condition="'$(BettaYakExeAvailable)' == 'true' AND '@(BettaProducedYak)' == ''"
              Text="[Betta yak] Yak.exe ran (exit $(BettaYakExitCode)) but no .yak file was produced in '$(BettaYakStagingDir)'. Inspect the build output above." />
 
-    <!-- 7. Drop-in .zip. Built from the staging dir so the contents track the
-            yak payload exactly. ZipDirectory takes a folder; we don't want the
-            full payload here, just Betta.gha + Betta.Abstractions.dll (a
-            user-friendly minimal drop-in for %AppData%\Grasshopper\Libraries).
-            Stage to a sub-folder, zip that, throw it away. -->
+    <!-- 7. Drop-in .zip. Staged from the SAME @(BettaRuntimePayload) as the
+            Libraries deploy and the yak, so a user who unzips into
+            %AppData%\Grasshopper\Libraries gets a self-contained plugin —
+            Betta.gha plus every runtime dependency (Microsoft.Extensions.*
+            etc.). A "minimal" Betta.gha-only zip fails to load on a clean
+            machine because those deps aren't part of the Rhino/.NET host.
+            The yak's host-config files (deps.json/runtimeconfig.json) are
+            omitted: a plain Libraries drop-in doesn't use them. -->
     <PropertyGroup>
       <BettaZipStagingDir>$(BettaYakStagingDir)\..\zip-staging</BettaZipStagingDir>
       <BettaZipOutput>$(BettaArtifactsDir)\Betta-$(Version).zip</BettaZipOutput>
     </PropertyGroup>
     <RemoveDir Directories="$(BettaZipStagingDir)" Condition="Exists('$(BettaZipStagingDir)')" />
     <MakeDir Directories="$(BettaZipStagingDir)" />
-    <Copy SourceFiles="$(TargetDir)Betta.gha" DestinationFolder="$(BettaZipStagingDir)" />
-    <Copy SourceFiles="$(TargetDir)Betta.Abstractions.dll" DestinationFolder="$(BettaZipStagingDir)" />
+    <Copy SourceFiles="@(BettaRuntimePayload)" DestinationFolder="$(BettaZipStagingDir)" />
     <Delete Files="$(BettaZipOutput)" Condition="Exists('$(BettaZipOutput)')" />
     <ZipDirectory SourceDirectory="$(BettaZipStagingDir)"
                   DestinationFile="$(BettaZipOutput)" />

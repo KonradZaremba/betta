@@ -73,6 +73,15 @@ namespace Betta.Interfaces
         Task<string> DelayedEcho(
             [GrasshopperParameter(Name = "Message", NickName = "M", Description = "Message to echo back", DefaultValue = "hello")] string message,
             [GrasshopperParameter(Name = "Seconds", NickName = "S", Description = "Delay in seconds", DefaultValue = 2.0)] double seconds);
+
+        [GrasshopperMethod(
+            Name = "Ticker",
+            NickName = "Tick",
+            Description = "Streams elapsed seconds — drop it on the canvas and watch the output update by itself. Demo of IObservable<T> streaming.",
+            Category = "Betta",
+            SubCategory = "Async")]
+        IObservable<double> Ticker(
+            [GrasshopperParameter(Name = "Interval", NickName = "T", Description = "Seconds between ticks (min 0.1)", DefaultValue = 1.0)] double intervalSeconds);
     }
 
     /// <summary>

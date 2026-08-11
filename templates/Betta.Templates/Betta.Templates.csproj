@@ -10,7 +10,6 @@
 
   <PropertyGroup>
     <PackageId>Betta.Templates</PackageId>
-    <Version>0.7.0</Version>
     <Title>Betta Plugin Templates</Title>
     <Authors>Konrad Zaremba</Authors>
     <Description>dotnet new templates for Betta Grasshopper plugins. Three flavors: basic (one collection), opaque (typed domain pipelines), and opaque-preview (with IBettaPreview viewport draws). Use 'dotnet new bettaplugin-basic -n MyPlugin' after installing.</Description>

@@ -16,7 +16,6 @@
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 
     <PackageId>Betta.Docs</PackageId>
-    <Version>0.7.0</Version>
     <Title>Betta.Docs</Title>
     <Authors>Konrad Zaremba</Authors>
     <Description>Reflects over Betta plugin DLLs and emits markdown documentation for every [GrasshopperMethod] it finds. Standalone CLI — does not require Rhino or Grasshopper to be installed.</Description>

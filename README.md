@@ -23,6 +23,14 @@
   <img src="media/NBTabBettaMini_Rose.png"   width="46" alt="Rose" />
 </p>
 
+<p>
+  <a href="https://konradzaremba.github.io/betta/"><b>Website</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/KonradZaremba/betta">GitHub</a>
+  &nbsp;·&nbsp;
+  <a href="https://www.linkedin.com/in/konrad-zaremba-99353539/">LinkedIn</a>
+</p>
+
 </div>
 
 ---

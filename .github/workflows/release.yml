@@ -1,0 +1,70 @@
+name: Release
+
+# Fires when a version tag is pushed:
+#   git tag v0.8.0 && git push origin v0.8.0
+#
+# Steps: build Release (which also produces the .yak + drop-in .zip via
+# BuildYak=true) -> create a GitHub Release with those artifacts -> push the
+# package to Yak / Rhino Package Manager (only if a YAK_TOKEN secret is set).
+#
+# NOTE: this workflow file must exist in the commit the tag points at — GitHub
+# runs the version of the workflow present in the tagged ref. Keep it on any
+# branch you cut releases from (main, develop/*).
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write        # needed to create the GitHub Release
+
+jobs:
+  release:
+    runs-on: windows-latest        # yak.exe + net7.0-windows build require Windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '7.0.x'
+
+      - name: Build (Release + Yak package + drop-in zip)
+        run: dotnet build Betta/Betta.sln -c Release -p:BuildYak=true
+
+      - name: List built artifacts
+        shell: pwsh
+        run: Get-ChildItem artifacts -Recurse -Include *.zip,*.yak | Select-Object FullName, Length
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $files = @()
+          $files += (Get-ChildItem artifacts/Betta-*.zip               -ErrorAction SilentlyContinue).FullName
+          $files += (Get-ChildItem artifacts/yak/Betta-*-rh8_0-any.yak -ErrorAction SilentlyContinue).FullName
+          $files = $files | Where-Object { $_ }
+          if (-not $files) { throw "No .zip/.yak artifacts found to attach — did BuildYak run?" }
+          Write-Host "Attaching:`n$($files -join "`n")"
+          gh release create $tag @files --title "Betta $tag" --generate-notes
+
+      - name: Publish to Yak (Rhino Package Manager)
+        env:
+          YAK_TOKEN: ${{ secrets.YAK_TOKEN }}
+        shell: pwsh
+        run: |
+          if (-not $env:YAK_TOKEN) {
+            Write-Host "::warning::YAK_TOKEN secret not set - skipping Yak publish. Add it under repo Settings > Secrets and variables > Actions to enable automatic Package Manager updates."
+            exit 0
+          }
+          Invoke-WebRequest https://files.mcneel.com/yak/tools/latest/yak.exe -OutFile yak.exe
+          $pkg = (Get-ChildItem artifacts/yak/Betta-*-rh8_0-any.yak | Select-Object -First 1).FullName
+          Write-Host "Pushing $pkg to Yak..."
+          ./yak.exe push $pkg
+
+      - name: Food4Rhino note
+        shell: pwsh
+        run: |
+          Write-Host "::notice::Food4Rhino has no publish API - update the listing manually at https://www.food4rhino.com (upload the .zip from this release). The Yak push above already updates Rhino's Package Manager, which is what the listing's 'Rhino Package' tab reflects."

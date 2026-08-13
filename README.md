@@ -5,7 +5,7 @@
 <h1>Betta</h1>
 
 <b>ZeroTouch for Grasshopper.</b><br/>
-<i>Write plain C# functions. Get real Grasshopper components.</i>
+<i>Write your logic. Betta does the rest.</i>
 
 <p>
   <img src="https://img.shields.io/badge/.NET-7.0-512BD4?logo=dotnet&logoColor=white" alt=".NET 7" />
@@ -37,44 +37,50 @@
 
 Every Grasshopper component is the same process. Subclass `GH_Component`. Hand-register each input and output. Invent a stable GUID. Draw a 24×24 icon. Marshal types in and out of `SolveInstance`. That's forty lines of plumbing before you write the one line you actually came for.
 
-**Write the one line. Betta writes the forty.** Decorate a plain C# method with an attribute — Betta reflects over it at load, builds the ports, assigns a deterministic GUID, picks an icon, and drops a real component on the canvas. It's the idea behind Dynamo's *ZeroTouch*, brought to Grasshopper: **put a DLL in, get nodes out.**
+**Write your logic. Betta does the rest.** Decorate a plain C# method with an attribute — Betta generates a stable GUID, inputs, outputs and an icon, a real component you can use on the canvas. It's the idea behind Dynamo's *ZeroTouch*, brought to Grasshopper: **put a DLL in, get nodes out.**
 
 ```csharp
-[GrasshopperCollection("Strings", "Text")]
-public interface IStringCollection : IBettaCollection
+[GrasshopperCollection("Curve", "Analysis")]
+public class CurveTools : IBettaCollection
 {
-    [GrasshopperMethod("Upper")]
-    string ToUpper([GrasshopperParameter("Text")] string text);
-
-    [GrasshopperMethod("Concat")]
-    string Concat(string left, string right, string separator);
+    [GrasshopperMethod("Divide")]
+    public List<Point3d> Divide(Curve curve, int count)
+    {
+        curve.DivideByCount(count, true, out Point3d[] pts);
+        return pts.ToList();
+    }
 }
 ```
 
-That's a ribbon tab, two components, and all their ports — done. No `GH_Component`, no `RegisterInputParams`, no `SolveInstance`, no GUID to babysit.
+That's a ribbon tab, a component, and all its ports — done. No `GH_Component`, no `RegisterInputParams`, no `SolveInstance`, no GUID to babysit.
 
 <details>
 <summary><b>👉 The same <i>single</i> component, hand-written the usual way</b></summary>
 
 ```csharp
-public class CubeComponent : GH_Component
+public class DivideComponent : GH_Component
 {
-    public CubeComponent() : base("Cube", "Cube", "x³", "Quickstart", "Demo") { }
+    public DivideComponent() : base("Divide", "Divide", "Divide a curve into points", "Curve", "Analysis") { }
 
     protected override void RegisterInputParams(GH_InputParamManager pm)
-        => pm.AddNumberParameter("Value", "V", "number to cube", GH_ParamAccess.item, 2.0);
+    {
+        pm.AddCurveParameter("Curve", "C", "curve to divide", GH_ParamAccess.item);
+        pm.AddIntegerParameter("Count", "N", "segment count", GH_ParamAccess.item, 10);
+    }
 
     protected override void RegisterOutputParams(GH_OutputParamManager pm)
-        => pm.AddNumberParameter("Result", "R", "x³", GH_ParamAccess.item);
+        => pm.AddPointParameter("Points", "P", "division points", GH_ParamAccess.list);
 
     protected override void SolveInstance(IGH_DataAccess DA)
     {
-        double x = 0.0;
-        if (!DA.GetData(0, ref x)) return;
-        DA.SetData(0, x * x * x);          // ← the only line you meant to write
+        Curve curve = null; int count = 0;
+        if (!DA.GetData(0, ref curve)) return;
+        if (!DA.GetData(1, ref count)) return;
+        curve.DivideByCount(count, true, out Point3d[] pts);
+        DA.SetDataList(0, pts);          // ← the only line you meant to write
     }
 
-    public override Guid ComponentGuid => new Guid("d3b07384-…-0001");
+    public override Guid ComponentGuid => new Guid("d3b07384-…-0002");
     protected override Bitmap Icon => null;
 }
 ```
@@ -97,10 +103,14 @@ Sure, an LLM can author a full `GH_Component` from scratch — and it usually do
 
 > Current release: **0.7.0** — see [CHANGELOG.md](CHANGELOG.md) for what's new.
 
-1. Build `Betta.sln -c Release` (VS 2022 or CLI). The post-build copies `Betta.gha` + deps into `%AppData%\Grasshopper\Libraries\`.
-2. Launch Rhino 8 → Grasshopper — the **Betta** and sample **Strings** tabs appear on the ribbon.
+Betta is a normal Grasshopper plugin — any of these drops it under a **Betta** tab after a Rhino restart:
 
-Or grab the [latest release](../../releases) (drop-in `.zip` or Rhino Package Manager `.yak`). Components missing? The startup log lists everything published at `%AppData%\Grasshopper\Libraries\Betta.log`.
+- **Rhino Package Manager** (recommended): run `_PackageManager`, search **Betta**, click Install.
+- **Yak** (CLI): `yak install betta`.
+- **Food4Rhino / manual**: grab the [latest release](../../releases) `.zip`, unblock it, unzip into `%AppData%\Grasshopper\Libraries\`.
+- **From source**: build `Betta.sln -c Release` — the post-build copies `Betta.gha` + deps into `%AppData%\Grasshopper\Libraries\`, then launch Rhino 8.
+
+Components missing? The startup log lists everything published at `%AppData%\Grasshopper\Libraries\Betta.log`.
 
 **Requires** Rhino 8 on Windows. Plugins target `net7.0-windows` (or any TFM that can reference `netstandard2.0`).
 

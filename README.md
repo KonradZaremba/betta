@@ -101,7 +101,7 @@ Sure, an LLM can author a full `GH_Component` from scratch — and it usually do
 
 ## Install
 
-> Current release: **0.7.0** — see [CHANGELOG.md](CHANGELOG.md) for what's new.
+> Current release: **0.7.2** — see [CHANGELOG.md](CHANGELOG.md) for what's new.
 
 Betta is a normal Grasshopper plugin — any of these drops it under a **Betta** tab after a Rhino restart:
 
@@ -122,7 +122,7 @@ Components missing? The startup log lists everything published at `%AppData%\Gra
 4. Build, drop the DLL into `%AppData%\Grasshopper\Libraries\Betta\`. Betta watches the folder and **hot-adds** it — no restart.
 
 ```xml
-<PackageReference Include="Betta.Abstractions" Version="0.7.0" ExcludeAssets="runtime" />
+<PackageReference Include="Betta.Abstractions" Version="0.7.2" ExcludeAssets="runtime" />
 ```
 
 ```csharp

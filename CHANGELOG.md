@@ -3,6 +3,21 @@
 All notable changes to Betta are documented here. Versions follow
 [SemVer](https://semver.org); the format follows [Keep a Changelog](https://keepachangelog.com).
 
+## [Unreleased]
+
+### Added
+- **Betta.Preview and Betta.Templates on nuget.org**, published by the release workflow alongside Betta.Abstractions.
+- **IntelliSense docs** — Betta.Abstractions now ships its XML documentation.
+- **CI** — every push and PR builds the solution and runs the headless test suite.
+- Headless tests for the async result cache (livelock + memoization), plugin-vs-dependency classification, and template version drift.
+
+### Fixed
+- `dotnet new bettaplugin-*` templates referenced Betta.Abstractions/Betta.Preview `0.4.0`, which was never published, so scaffolded plugins failed to restore.
+- README listed tree inputs as unsupported; tree I/O has worked since the first release (0.3.1).
+
+### Changed
+- The async result cache moved out of `BettaComponent` into `AsyncResultCache` (no behavior change).
+
 ## [0.7.2.1] — 2026-08-19
 
 ### Changed

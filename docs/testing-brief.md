@@ -1,6 +1,6 @@
 # Testing Brief — Closing the Betta solve-pipeline gap
 
-> **Scope:** Betta runtime + NanoBanana · **Status:** Proposed · **Effort:** Phased (Tier 1 first) · **Owner:** betta repo
+> **Scope:** Betta runtime + NanoBanana · **Status:** Tier 1 done (v0.8: `TestAsyncResultCache`, `TestPluginClassifier`, existing `OutputPlanner` tests) · Tiers 2–3 proposed · **Owner:** betta repo
 
 Four runtime bugs shipped past a green test suite because every existing test
 exercises the plugin's *logic*, and none exercises the framework's **live

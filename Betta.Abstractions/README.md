@@ -3,7 +3,7 @@
 > Same silhouette. Every fish is its own.
 > Public SDK contract for authoring **Betta** plugins — zero-touch Grasshopper components from attributed C# service methods.
 
-This package contains only the attributes and marker interface needed to author a Betta plugin. The runtime (`Betta.gha`) is a Grasshopper plugin loaded by Rhino, **not** shipped inside your plugin DLL.
+This package contains only the attributes and interfaces needed to author a Betta plugin. The runtime (`Betta.gha`) is a Grasshopper plugin loaded by Rhino, **not** shipped inside your plugin DLL.
 
 ## Quick start
 
@@ -52,7 +52,7 @@ This package contains only the attributes and marker interface needed to author 
 | `[GrasshopperRange(min, max)]` | parameter | Numeric range check; out-of-range surfaces a Warning + skips the invocation. |
 | `[GrasshopperNotEmpty]` | parameter | Rejects null/whitespace strings and empty collections. |
 | `[GrasshopperValidation(typeof(MyValidator))]` | parameter | Hands the value to your `IBettaValidator` implementation. |
-| `[GrasshopperMenuState]` | parameter | Per-instance right-click menu state, not a wired input. Enum + bool get a UI editor in v0.5. |
+| `[GrasshopperMenuState]` | parameter | Per-instance right-click menu state, not a wired input. Enum + bool get a right-click submenu. |
 | `[GrasshopperSecret("service.key")]` | `string` parameter | Not a wired input. Value read from the OS credential store at solve time. Set via the `Betta_Secrets` Rhino command / GH menu. |
 | `[GrasshopperTrigger]` | `bool` parameter | Not a wired input. Component adds a "Run" menu item; the method only fires when clicked. Method body can read the bool to distinguish manual runs from cache re-solves. |
 | `[GrasshopperValueList("a", "b", ...)]` | parameter | Normal wired input, but Betta auto-attaches a `GH_ValueList` seeded with those items when the component is placed on the canvas. Skips inputs the user has already wired. |

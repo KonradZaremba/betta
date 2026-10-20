@@ -305,7 +305,7 @@ Off by default. Enable via **Betta → Trusted publishers…** to pick between `
 
 - **Async** (`Task<T>` / `ValueTask<T>` returns) — non-blocking solve, bounded LRU cache with in-flight dedupe.
 - **Hot-reload** — when you drop a replaced DLL into the Betta folder mid-session, Betta now writes a visible warning to the Rhino command line telling you to restart. (True ALC-based unload is roadmap.)
-- **`Betta.Generators`** (preview) — Roslyn source generator that emits a manifest of `[GrasshopperMethod]` members. v0.4 is metadata-only; future versions will replace runtime reflection with generated registrations. Opt-in via package reference.
+- **`Betta.Generators`** (preview) — Roslyn source generator that emits a `BettaPluginBootstrap` descriptor manifest; when a plugin carries one, Betta uses it instead of the reflection scan at load. Also reports `BETTA001`/`BETTA010` diagnostics for unsupported parameter types and mismatched names. Optional — reflection works without it.
 
 ## A fish per component
 
@@ -357,7 +357,7 @@ dotnet pack  Betta.Abstractions/Betta.Abstractions.csproj -c Release  # → ./ar
 
 ## Not yet supported
 
-Tree inputs (`GH_Structure<T>`), hot-reload of *replaced* plugins, a canvas LoadLibrary component, and a real settings panel — see [ROADMAP.md](ROADMAP.md).
+Hot-reload of *replaced* plugins (Betta warns and asks for a restart), DI for plugins dropped in mid-session, a canvas LoadLibrary component, and a real settings panel — see [ROADMAP.md](ROADMAP.md).
 
 ## License
 

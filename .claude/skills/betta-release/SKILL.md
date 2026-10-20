@@ -9,7 +9,7 @@ description: Use when bumping the Betta version, packing Betta NuGet packages (B
 
 The version is set ONCE in the repo-root `Directory.Build.props` (`<Version>`); individual csproj files must not set it. Bump it there before each release.
 
-A version bump also needs: the template defaults in `templates/Betta.Templates/content/*/.template.config/template.json` (`TestTemplateVersions` fails until they match), and the `PackageReference` versions in `README.md`, `index.html`, `Betta.Abstractions/README.md`, `Betta.Preview/README.md` and `.claude/skills/betta-plugin/SKILL.md`.
+A version bump also needs: the template defaults in `templates/Betta.Templates/content/*/.template.config/template.json` (`TestTemplateVersions` fails until they match), and the `PackageReference` versions in `README.md`, `index.html`, `Betta.Abstractions/README.md`, `Betta.Preview/README.md` and every file under `.claude/skills/betta-plugin/` (`SKILL.md` and `references/`).
 
 ## NuGet packages
 

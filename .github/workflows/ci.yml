@@ -1,0 +1,36 @@
+name: CI
+
+# Builds the solution and runs every test that doesn't need a Rhino install
+# (GitHub's runners have none). Tests that do are tagged
+# [Trait("Requires", "Rhino")] and still run with a plain local `dotnet test`.
+
+on:
+  push:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest        # net7.0-windows + WPF/WinForms need Windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '7.0.x'
+
+      - name: Build
+        run: dotnet build Betta/Betta.sln -c Release
+
+      - name: Test (headless - no Rhino on the runner)
+        run: dotnet test TestBetta/TestBetta.csproj -c Release --no-build --filter "Requires!=Rhino" --logger "trx;LogFileName=results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestBetta/TestResults/*.trx

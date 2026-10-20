@@ -49,11 +49,8 @@ namespace Betta.Components
         // dedupes concurrent solves with the same key so a fast successive
         // expire doesn't double-spawn the same task.
         private bool _isAsync;
-        private readonly object _asyncLock = new();
-        private readonly LinkedList<KeyValuePair<string, object>> _asyncOrder = new();
-        private readonly Dictionary<string, LinkedListNode<KeyValuePair<string, object>>> _asyncCache = new();
-        private readonly Dictionary<string, Task> _asyncInFlight = new();
         private const int AsyncCacheMax = 64;
+        private readonly AsyncResultCache _asyncResults = new(AsyncCacheMax);
 
         // Streaming support: when the service method returns IObservable<T>, we
         // subscribe ONCE per input set and call ExpireSolution on EVERY emission,
@@ -275,7 +272,7 @@ namespace Betta.Components
                                 return;
                             }
                             Message = null;
-                            asyncKeysThisSolve.Add(AsyncKey(args));
+                            asyncKeysThisSolve.Add(AsyncResultCache.KeyFor(args));
                         }
                         else if (_isStreaming)
                         {
@@ -482,29 +479,21 @@ namespace Betta.Components
         /// ExpireSolution(true) onto the UI thread so GH re-solves and the
         /// next pass takes the cache-hit branch.
         ///
-        /// Concurrent solves with the same key dedupe via _asyncInFlight: only
-        /// one task runs per (component, key) pair at a time.
+        /// Concurrent solves with the same key dedupe via the in-flight
+        /// registry in <see cref="AsyncResultCache"/>: only one task runs per
+        /// (component, key) pair at a time.
         /// </summary>
         private bool TryGetAsyncResult(object[] args, out object result)
         {
-            var key = AsyncKey(args);
-            lock (_asyncLock)
+            var key = AsyncResultCache.KeyFor(args);
+            switch (_asyncResults.TryGet(key, out result))
             {
-                if (_asyncCache.TryGetValue(key, out var node))
-                {
-                    // LRU touch — move to MRU end.
-                    _asyncOrder.Remove(node);
-                    _asyncOrder.AddLast(node);
-                    result = node.Value.Value;
+                case AsyncResultCache.Lookup.Hit:
                     return true;
-                }
-                if (_asyncInFlight.ContainsKey(key))
-                {
+                case AsyncResultCache.Lookup.InFlight:
                     // Same compute already running — let it finish; its
                     // continuation will ExpireSolution and we'll cache-hit.
-                    result = null;
                     return false;
-                }
             }
 
             object invocation;
@@ -528,11 +517,11 @@ namespace Betta.Components
                 return false;
             }
 
-            lock (_asyncLock) { _asyncInFlight[key] = task; }
+            _asyncResults.MarkInFlight(key, task);
 
             task.ContinueWith(t =>
             {
-                lock (_asyncLock) { _asyncInFlight.Remove(key); }
+                _asyncResults.ClearInFlight(key);
 
                 if (t.IsFaulted)
                 {
@@ -548,22 +537,7 @@ namespace Betta.Components
 
                 // Task<T>.Result via reflection (can't cast the non-generic Task).
                 var resultProp = t.GetType().GetProperty("Result");
-                var taskResult = resultProp?.GetValue(t);
-
-                lock (_asyncLock)
-                {
-                    if (!_asyncCache.ContainsKey(key))
-                    {
-                        var node = _asyncOrder.AddLast(new KeyValuePair<string, object>(key, taskResult));
-                        _asyncCache[key] = node;
-                        while (_asyncCache.Count > AsyncCacheMax)
-                        {
-                            var oldest = _asyncOrder.First;
-                            _asyncOrder.RemoveFirst();
-                            _asyncCache.Remove(oldest.Value.Key);
-                        }
-                    }
-                }
+                _asyncResults.Store(key, resultProp?.GetValue(t));
 
                 Rhino.RhinoApp.InvokeOnUiThread(new Action(() => ExpireSolution(true)));
             }, TaskContinuationOptions.ExecuteSynchronously);
@@ -581,20 +555,7 @@ namespace Betta.Components
         /// capture) return the same output forever on unchanged inputs — the user
         /// toggles Run and gets the previous image back.
         /// </summary>
-        private void EvictAsyncResults(IEnumerable<string> keys)
-        {
-            lock (_asyncLock)
-            {
-                foreach (var key in keys)
-                {
-                    if (_asyncCache.TryGetValue(key, out var node))
-                    {
-                        _asyncOrder.Remove(node);
-                        _asyncCache.Remove(key);
-                    }
-                }
-            }
-        }
+        private void EvictAsyncResults(IEnumerable<string> keys) => _asyncResults.Evict(keys);
 
         /// <summary>
         /// Normalize Task&lt;T&gt; and ValueTask&lt;T&gt; into a plain Task the
@@ -625,7 +586,7 @@ namespace Betta.Components
         /// </summary>
         private bool TryGetStreamResult(object[] args, out object result)
         {
-            var key = AsyncKey(args);
+            var key = AsyncResultCache.KeyFor(args);
 
             bool needSubscribe;
             lock (_streamLock)
@@ -768,75 +729,6 @@ namespace Betta.Components
         {
             DisposeStream();
             base.RemovedFromDocument(document);
-        }
-
-        /// <summary>
-        /// Structural cache key for a method call. Primitives, strings,
-        /// enums, decimals, and Rhino.Geometry value types use their stable
-        /// ToString. Collections recurse element-wise. Other reference types
-        /// fall back to TypeName + RuntimeHelpers.GetHashCode (identity-ish)
-        /// — better than naive ToString collisions, but documented as a
-        /// best-effort key for non-value reference types.
-        /// </summary>
-        private static string AsyncKey(object[] args)
-        {
-            var sb = new System.Text.StringBuilder(args.Length * 16);
-            for (int i = 0; i < args.Length; i++)
-            {
-                if (i > 0) sb.Append('|');
-                AppendArgKey(sb, args[i]);
-            }
-            return sb.ToString();
-        }
-
-        private static void AppendArgKey(System.Text.StringBuilder sb, object a)
-        {
-            if (a == null) { sb.Append('n'); return; }
-            var t = a.GetType();
-
-            // Synthetic per-solve params are NOT real inputs: the runtime hands
-            // the method a fresh CancellationToken and a fresh IProgress<T> sink
-            // on EVERY solve. Their instance identity therefore changes each
-            // pass — and if they leak into the key (the reference/boxed-struct
-            // fallback below hashes instance identity), the async cache never
-            // hits, so every solve relaunches the task while BeforeSolveInstance
-            // cancels the prior one: an infinite "computing" livelock. Fold them
-            // to a constant so the key depends only on the real wired inputs.
-            if (a is CancellationToken) { sb.Append("ct"); return; }
-            if (t.GetInterfaces().Any(i => i.IsGenericType &&
-                                           i.GetGenericTypeDefinition() == typeof(IProgress<>)))
-            { sb.Append("pg"); return; }
-
-            if (t.IsPrimitive || a is string || a is DateTime || a is decimal)
-            { sb.Append(t.Name); sb.Append(':'); sb.Append(a); return; }
-
-            if (t.IsEnum)
-            { sb.Append("e:"); sb.Append(t.Name); sb.Append(':'); sb.Append(Convert.ToInt64(a)); return; }
-
-            if (t.Namespace == "Rhino.Geometry")
-            { sb.Append('r'); sb.Append(t.Name); sb.Append(':'); sb.Append(a); return; }
-
-            if (a is System.Collections.IEnumerable enumerable && a is not string)
-            {
-                sb.Append('[');
-                foreach (var item in enumerable) { AppendArgKey(sb, item); sb.Append(','); }
-                sb.Append(']'); return;
-            }
-
-            // Value-type fallback (structs not special-cased above: Guid, Color,
-            // Interval, Transform, BoundingBox…). Use their ToString — it is
-            // deterministic for a given value, unlike the boxed instance's
-            // identity hash, which changes every solve and would defeat the
-            // cache the same way the synthetic params do.
-            if (t.IsValueType)
-            { sb.Append('v'); sb.Append(t.FullName); sb.Append(':'); sb.Append(a); return; }
-
-            // Reference-type fallback: type name + identity hash. Stable for the
-            // same object, collides only for genuinely identical references —
-            // not great for mutable value-bag classes, but doesn't silently
-            // merge unrelated instances the way bare ToString did.
-            sb.Append('o'); sb.Append(t.FullName); sb.Append(':');
-            sb.Append(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(a));
         }
 
         private static string Format(object value)

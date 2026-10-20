@@ -28,9 +28,9 @@
     <Authors>Konrad Zaremba</Authors>
     <Description>Model Context Protocol (MCP) server that exposes the live state of a Betta Grasshopper installation to AI agents: loaded plugins, recent log lines, component descriptors, and signature validation. Run as a CLI or `dotnet tool`.</Description>
     <PackageTags>grasshopper;rhino;betta;mcp;claude;ai;agent;tool</PackageTags>
-    <RepositoryUrl>https://github.com/KonradZaremba/GH_AutoCreator</RepositoryUrl>
+    <RepositoryUrl>https://github.com/KonradZaremba/betta</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/KonradZaremba/GH_AutoCreator</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/KonradZaremba/betta</PackageProjectUrl>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>

@@ -21,9 +21,9 @@
     <Authors>Konrad Zaremba</Authors>
     <Description>Public contract (attributes + marker interface) for authoring Betta plugins: zero-touch Grasshopper components from attributed C# service methods. Same silhouette, every fish is its own.</Description>
     <PackageTags>grasshopper;rhino;dynamo;zerotouch;plugin;betta</PackageTags>
-    <RepositoryUrl>https://github.com/KonradZaremba/GH_AutoCreator</RepositoryUrl>
+    <RepositoryUrl>https://github.com/KonradZaremba/betta</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/KonradZaremba/GH_AutoCreator</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/KonradZaremba/betta</PackageProjectUrl>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>

@@ -3,6 +3,16 @@
 All notable changes to Betta are documented here. Versions follow
 [SemVer](https://semver.org); the format follows [Keep a Changelog](https://keepachangelog.com).
 
+## [0.7.2.1] — 2026-08-19
+
+### Changed
+- **Republish of 0.7.2** — the `0.7.2` version slot was yanked from the Rhino
+  Package Manager (Yak) and cannot be reused, so this release re-ships the same
+  runtime under a fresh patch version. No functional changes over 0.7.2.
+- Corrected the NuGet package `RepositoryUrl` / `PackageProjectUrl` metadata to
+  point at `github.com/KonradZaremba/betta` (previously the legacy
+  `GH_AutoCreator` repo).
+
 ## [0.7.2] — 2026-08-11
 
 ### Added

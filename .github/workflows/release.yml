@@ -4,8 +4,15 @@ name: Release
 #   git tag v0.8.0 && git push origin v0.8.0
 #
 # Steps: build Release (which also produces the .yak + drop-in .zip via
-# BuildYak=true) -> create a GitHub Release with those artifacts -> push the
-# package to Yak / Rhino Package Manager (only if a YAK_TOKEN secret is set).
+# BuildYak=true) -> pack Betta.Abstractions and check the tag matches its
+# version -> create a GitHub Release with those artifacts -> push
+# Betta.Abstractions to nuget.org via Trusted Publishing -> push the package to
+# Yak / Rhino Package Manager (only if a YAK_TOKEN secret is set).
+#
+# nuget.org Trusted Publishing needs a policy on nuget.org (username menu >
+# Trusted Publishing) for owner KonradZaremba, repository betta, workflow file
+# release.yml. No API key is stored anywhere: NuGet/login exchanges GitHub's
+# OIDC token for a one-hour key.
 #
 # NOTE: this workflow file must exist in the commit the tag points at — GitHub
 # runs the version of the workflow present in the tagged ref. Keep it on any
@@ -18,6 +25,7 @@ on:
 
 permissions:
   contents: write        # needed to create the GitHub Release
+  id-token: write        # lets NuGet/login request a GitHub OIDC token for Trusted Publishing
 
 jobs:
   release:
@@ -36,6 +44,21 @@ jobs:
         shell: pwsh
         run: Get-ChildItem artifacts -Recurse -Include *.zip,*.yak | Select-Object FullName, Length
 
+      # Fails before anything is published if the tag and Directory.Build.props
+      # disagree - nuget.org versions are immutable, so a wrong push can't be undone.
+      - name: Pack Betta.Abstractions and check tag matches version
+        id: pack
+        shell: pwsh
+        run: |
+          dotnet pack Betta.Abstractions/Betta.Abstractions.csproj -c Release --no-build
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $nupkg = "artifacts/Betta.Abstractions.$version.nupkg"
+          if (-not (Test-Path $nupkg)) {
+            $built = (Get-ChildItem artifacts/Betta.Abstractions.*.nupkg).Name -join ', '
+            throw "Tag ${{ github.ref_name }} expects $nupkg, but pack produced: $built. Bump <Version> in Directory.Build.props to match the tag."
+          }
+          "nupkg=$nupkg" >> $env:GITHUB_OUTPUT
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -49,6 +72,17 @@ jobs:
           if (-not $files) { throw "No .zip/.yak artifacts found to attach — did BuildYak run?" }
           Write-Host "Attaching:`n$($files -join "`n")"
           gh release create $tag @files --title "Betta $tag" --generate-notes
+
+      # Request the key right before pushing: it is valid for one hour and one use.
+      - name: NuGet login (OIDC -> temporary API key)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: konradzaremba     # nuget.org profile name (public package owner), not an email
+
+      - name: Publish Betta.Abstractions to nuget.org
+        shell: pwsh
+        run: dotnet nuget push ${{ steps.pack.outputs.nupkg }} --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish to Yak (Rhino Package Manager)
         env:

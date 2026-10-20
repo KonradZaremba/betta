@@ -20,9 +20,9 @@
     <Authors>Konrad Zaremba</Authors>
     <Description>Reflects over Betta plugin DLLs and emits markdown documentation for every [GrasshopperMethod] it finds. Standalone CLI — does not require Rhino or Grasshopper to be installed.</Description>
     <PackageTags>grasshopper;rhino;betta;documentation;cli;tool</PackageTags>
-    <RepositoryUrl>https://github.com/KonradZaremba/GH_AutoCreator</RepositoryUrl>
+    <RepositoryUrl>https://github.com/KonradZaremba/betta</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/KonradZaremba/GH_AutoCreator</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/KonradZaremba/betta</PackageProjectUrl>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts\</PackageOutputPath>
 

@@ -6,7 +6,8 @@ All notable changes to Betta are documented here. Versions follow
 ## [Unreleased]
 
 ### Added
-- **Betta.Preview and Betta.Templates on nuget.org**, published by the release workflow alongside Betta.Abstractions.
+- **Betta.Preview, Betta.Templates and Betta.Mcp on nuget.org**, published by the release workflow alongside Betta.Abstractions. Install the MCP server with `dotnet tool install --global Betta.Mcp`.
+- **Betta.Mcp speaks MCP 2026-07-28** (stateless, `server/discover`) and still serves clients that use the older `initialize` handshake. Tools are marked read-only.
 - **IntelliSense docs** — Betta.Abstractions now ships its XML documentation.
 - **CI** — every push and PR builds the solution and runs the headless test suite.
 - Headless tests for the async result cache (livelock + memoization), plugin-vs-dependency classification, and template version drift.
@@ -14,6 +15,10 @@ All notable changes to Betta are documented here. Versions follow
 ### Fixed
 - `dotnet new bettaplugin-*` templates referenced Betta.Abstractions/Betta.Preview `0.4.0`, which was never published, so scaffolded plugins failed to restore.
 - README listed tree inputs as unsupported; tree I/O has worked since the first release (0.3.1).
+- `betta_validate_signature` rejected valid signatures using features from 0.5–0.7 (streaming `IObservable<T>`, `ValueTask`, `CancellationToken`/`IProgress<T>`, `params` arrays, parameter attributes). It now matches the runtime.
+- Betta.Mcp answered `initialize` with whatever protocol version the client asked for, even ones it doesn't implement.
+- Betta.Mcp decoded stdin with the Windows console code page instead of UTF-8, garbling any non-ASCII tool argument (paths, names).
+- The `betta-plugin` agent skill pointed authors at Betta.Abstractions 0.3.1 and missed streaming, the templates and Betta.Mcp.
 
 ### Changed
 - The async result cache moved out of `BettaComponent` into `AsyncResultCache` (no behavior change).

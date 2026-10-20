@@ -1,6 +1,6 @@
 ---
 name: betta-plugin
-description: Use when authoring, creating, or debugging a Betta Grasshopper plugin or component — turning plain attributed C# service methods into Grasshopper components with zero hand-written GH_Component code. Trigger whenever the user works with [GrasshopperMethod]/[GrasshopperParameter]/[GrasshopperCollection]/IBettaCollection, references Betta.Abstractions, asks why a saved .gh broke, or wants a Grasshopper component generated from a C# method. Covers the contract, attribute set, return-type → output mapping, defaults, custom icons, GUID/save-reload stability, and deployment.
+description: Use when authoring, creating, or debugging a Betta Grasshopper plugin or component — turning plain attributed C# service methods into Grasshopper components with zero hand-written GH_Component code. Trigger whenever the user works with [GrasshopperMethod]/[GrasshopperParameter]/[GrasshopperCollection]/IBettaCollection, references Betta.Abstractions, asks why a saved .gh broke, or wants a Grasshopper component generated from a C# method. Covers the contract, attribute set, return-type → output mapping (incl. async and IObservable streaming), defaults, custom icons, GUID/save-reload stability, deployment, and the dotnet-new templates / Betta.Mcp tooling.
 ---
 
 # Authoring a Betta plugin
@@ -29,9 +29,10 @@ Inheriting `IBettaCollection` is **required** either way — it's the opt-in mar
 
 Create a `net7.0-windows` class library and reference **`Betta.Abstractions`** (the SDK contract — attributes + marker), never the runtime `Betta.gha`. Use `ExcludeAssets="runtime"` so your DLL doesn't redistribute a copy.
 
-Package reference (preferred once published):
+Package references (both on nuget.org; add `Betta.Preview` only if you need viewport preview, bake, or `BettaImage`):
 ```xml
-<PackageReference Include="Betta.Abstractions" Version="0.3.1" ExcludeAssets="runtime" />
+<PackageReference Include="Betta.Abstractions" Version="0.8.0" ExcludeAssets="runtime" />
+<PackageReference Include="Betta.Preview" Version="0.8.0" ExcludeAssets="runtime" />
 ```
 
 Project reference (working inside the Betta repo):
@@ -114,6 +115,7 @@ Same thing in interface-based style — move the attributes to `public interface
 | Return an **opaque** custom class | **One typed output** via `Param_BettaGoo<T>` — no explosion |
 | Return `List<T>` of opaque `T` | One typed list output |
 | Return `Task<T>` / `ValueTask<T>` | **Async** — runtime kicks off the task, caches by input hash, calls `ExpireSolution(true)` on completion |
+| Return `IObservable<T>` | **Streaming** — live component; see "Streaming" below |
 | Method / class with `[GrasshopperRequiresEntitlement("k")]` | Inert annotation unless a plugin registers `IBettaLicenseGate` — then the component Warns + skips when the entitlement isn't granted |
 
 ### Naming outputs
@@ -211,6 +213,27 @@ async Task<double> SumAsync(List<double> xs, CancellationToken ct) { ... }
 
 `IProgress<int>` / `IProgress<string>` parameters become a sink that updates the component's `Message` tag — gives users a "computing 42%" indicator for free.
 
+## Streaming (`IObservable<T>`)
+
+A method returning `IObservable<T>` becomes a live component. `T` maps to outputs like a normal return (primitive, tuple, opaque, …).
+
+- Betta **subscribes on the first solve** (status shows *listening*); the method runs once per subscription, not once per emission.
+- Every emission pushes the **newest value** to the output; re-solves are coalesced on the UI thread, so a fast stream can skip intermediate values — not for lossless event delivery.
+- **Changing any wired input** disposes the old subscription and re-invokes the method for a new one.
+- The subscription is disposed when the component leaves the canvas — the `IDisposable` your observable's `Subscribe` returns must really release watchers/timers/sockets.
+
+```csharp
+[GrasshopperMethod("Ticker")]
+public IObservable<long> Ticker([GrasshopperParameter("Seconds", DefaultValue = 1)] int seconds)
+    => Observable.Interval(TimeSpan.FromSeconds(seconds));
+```
+
+Betta ships no Rx: using `System.Reactive` means bundling `System.Reactive.dll` next to your plugin DLL. Without it, hand-roll the observable like the `Ticker` in `Betta/Services/SimpleService.cs`.
+
+## Branched inputs
+
+Item and list inputs wired with multiple branches are flattened automatically (no per-branch mismatch). To see the branch structure, take `GH_Structure<TGoo>` (see Tree inputs).
+
 ## Built-in diagnostics
 
 - **Betta Inspector** component (toolbar: Betta / Inspector) emits one line per registered descriptor: category, name, method signature, GUID, source DLL, capability flags.
@@ -254,7 +277,7 @@ The component continues solving the next branch — only the offending invocatio
 
 ## Viewport preview (`Betta.Preview`)
 
-Opaque domain objects can opt into Rhino viewport drawing by implementing `IBettaPreview` (from the `Betta.Preview` package — add the package reference only if you need preview):
+Opaque domain objects can opt into Rhino viewport drawing by implementing `IBettaPreview` (package and namespace `Betta.Preview`; `IBettaValue` lives in `Betta.Interfaces`):
 
 ```csharp
 using Betta.Preview;
@@ -269,7 +292,12 @@ public class Graph : IBettaValue, IBettaPreview
 }
 ```
 
-Betta detects `IBettaPreview` by interface-name string (so the Betta runtime stays free of a hard `Betta.Preview` reference) and the wrapping component automatically advertises `IsPreviewCapable`, sums `ClippingBox`, and forwards Draw calls via reflection. Caching is per-solve and zero-overhead when no return type implements `IBettaPreview`.
+Betta detects `IBettaPreview` by interface-name string (so the Betta runtime stays free of a hard `Betta.Preview` reference) and the wrapping component automatically advertises `IsPreviewCapable`, sums `ClippingBox`, and forwards Draw calls via reflection. Caching is per-solve and zero-overhead when no return type implements `IBettaPreview`. `IBettaBakeable` (`Bake(RhinoDoc, ObjectAttributes, List<Guid>)`) is detected independently, so a type can bake without previewing. `BettaImage` is opaque and bakeable (PictureFrame, PNG round-trip) but deliberately not `IBettaPreview`.
+
+## Tooling
+
+- **Templates** — scaffold a restorable project instead of hand-writing the csproj: `dotnet new install Betta.Templates`, then `dotnet new bettaplugin-basic -n MyPlugin` (plain methods), `bettaplugin-opaque` (opaque domain pipeline) or `bettaplugin-opaque-preview` (opaque + `IBettaPreview`).
+- **Betta.Mcp** — MCP server: `dotnet tool install --global Betta.Mcp`, then `claude mcp add betta -- betta-mcp`. Tools: `betta_validate_signature` (heuristic check that a signature like `"double Cube(double x)"` maps before you write it), `betta_describe` (look up a published component by display name: signature, params, GUID), `betta_status` (DLLs in the Betta folder and method counts, without executing plugin code), `betta_recent_logs` (tail `Betta.log`; why a plugin failed to register).
 
 ## GUID & save/reload stability
 
@@ -293,6 +321,7 @@ This is the contract to keep in mind when refactoring a published pack:
 
 When working inside the Betta repo (`KonradZaremba/betta`), these are the canonical examples:
 
+- Templates: `templates/Betta.Templates/content/`; MCP server: `Betta.Mcp/`
 - Terse string-ops sample (project reference): `Betta.Strings/IStringCollection.cs`
 - Defaults + list input + tuple output + custom icon + package-reference authoring: `samples/Betta.Quickstart/`
 - Graduated feature tour across 4 collections (basics → intermediate → advanced → no-interface class-direct), incl. Rhino geometry: `samples/Betta.Tour/`

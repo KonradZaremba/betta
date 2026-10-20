@@ -16,4 +16,6 @@ What's planned after the current release, roughly in priority order. Shipped wor
 - **DI for plugins dropped in mid-session** — the service provider is built once at startup, so runtime-dropped plugins skip `IBettaModule`.
 - **Canvas LoadLibrary component** — load a plugin DLL from the Grasshopper canvas.
 - **Settings panel** — a real UI for Betta's options.
-- **More packages on nuget.org** — `Betta.Generators`, `Betta.Docs` (dotnet tool) and `Betta.Mcp`.
+- **More packages on nuget.org** — `Betta.Generators` and `Betta.Docs` (dotnet tool).
+- **Betta.Mcp on the official MCP C# SDK** — replace the hand-rolled JSON-RPC layer once the SDK covers the 2026-07-28 revision.
+- **Pure-logic tests on CI** — about 50 tests (input coercion, enum inputs, param mapping) are tagged `Requires=Rhino` only because RhinoCommon/Grasshopper resolve from a Rhino install; loading them from the NuGet package on CI would bring them back.

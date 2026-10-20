@@ -98,6 +98,15 @@ Betta can be used for AI-assisted authoring — the repo ships a Claude Code ski
 
 Sure, an LLM can author a full `GH_Component` from scratch — and it usually does, after a few rounds of fixing the GUID, the param-access modes, and the icon plumbing. With Betta the agent only writes the function body; everything around it is generated deterministically at runtime, so refactors don't re-spend tokens on boilerplate and there's far less hallucinated code in the diff to review.
 
+**Betta.Mcp** gives any MCP client (Claude Code, Claude Desktop, Cursor) live answers instead of guesses: check a method signature before writing it, look up a published component's GUID and params, list what's loaded, and tail `Betta.log` when a plugin fails to register. It reads plugin DLLs without executing them.
+
+```bash
+dotnet tool install --global Betta.Mcp
+claude mcp add betta -- betta-mcp
+```
+
+Codex and other `AGENTS.md`-aware agents are pointed at the same guidance.
+
 
 ## Install
 
@@ -353,7 +362,7 @@ dotnet test  TestBetta/TestBetta.csproj                               # Requires
 dotnet pack  Betta.Abstractions/Betta.Abstractions.csproj -c Release  # → ./artifacts/*.nupkg
 ```
 
-`Betta.Abstractions`, `Betta.Preview` and `Betta.Templates` are published to nuget.org by the release workflow (`GeneratePackageOnBuild` is off — pack explicitly). `samples/Betta.Quickstart` restores it from the local `artifacts/` feed to exercise the packaged authoring flow.
+`Betta.Abstractions`, `Betta.Preview`, `Betta.Templates` and the `Betta.Mcp` dotnet tool are published to nuget.org by the release workflow (`GeneratePackageOnBuild` is off — pack explicitly). `samples/Betta.Quickstart` restores it from the local `artifacts/` feed to exercise the packaged authoring flow.
 
 ## Not yet supported
 

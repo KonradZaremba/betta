@@ -21,7 +21,7 @@ The solution file is at the legacy path `Betta/Betta.sln` (inside the runtime pr
 - `Betta.Abstractions/` — the **public SDK contract** (`netstandard2.0`). Its only package dependency is `Microsoft.Extensions.DependencyInjection.Abstractions`. Plugin authors reference this package with `ExcludeAssets="runtime"`; never redistribute it.
 - `Betta/Betta.csproj` — the runtime. Compiles to `Betta.dll`; `Betta.Build.targets` produces `Betta.gha` (see Build below). `UseWindowsForms` is required for the `ToolStripDropDown` in the menu-state UI.
 - `Betta.Generators/` — optional Roslyn source generator. Emits `Betta.Generated.BettaPluginBootstrap`, which `Startup` / `ComponentDescriptorBlueprint` use as a fast-path descriptor manifest instead of the reflection scan; also reports `BETTA001`/`BETTA010` diagnostics. The reflection path must keep working without it.
-- `Betta.Mcp/` (outside the solution) — stdio MCP server that recomputes descriptor GUIDs with the same MD5 scheme as `ComponentDescriptor.GenerateGuidFromMethod`, so the two must stay in sync.
+- `Betta.Mcp/` (outside the solution) — stdio MCP server that recomputes descriptor GUIDs with the same MD5 scheme as `ComponentDescriptor.GenerateGuidFromMethod`, so the two must stay in sync. Speaks MCP 2026-07-28 and the legacy `initialize` revisions side by side. Tests: `Betta.Mcp.Tests/` (net8.0, run by CI).
 - `Betta.Windows/` contains only stale, git-ignored `bin/`/`obj/`. It is not a project.
 - Licensing ships as **Betta.Pro** in a separate repo; this repo has only the hooks (`IBettaLicenseGate`, `[GrasshopperRequiresEntitlement]`).
 

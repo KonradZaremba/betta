@@ -34,6 +34,7 @@ namespace TestBetta
         }
     }
 
+    [Trait("Requires", "Rhino")]
     public class TestModuleDiscovery
     {
         [Fact]

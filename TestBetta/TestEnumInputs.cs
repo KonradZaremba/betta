@@ -15,6 +15,7 @@ namespace TestBetta
         Doors = 2
     }
 
+    [Trait("Requires", "Rhino")]
     public class TestEnumInputs
     {
         // Private helper that mirrors ParamInjector.ChangeTypeStrong. We reach

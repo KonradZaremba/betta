@@ -348,12 +348,12 @@ TestBetta/            xUnit tests (Rhino.Inside, headless GH)
 ## Build & package
 
 ```bash
-dotnet build Betta.sln -c Debug                                       # plugin + samples
-dotnet test  TestBetta/TestBetta.csproj                               # needs Rhino 8 (Rhino.Inside)
+dotnet build Betta/Betta.sln -c Debug                                 # plugin + samples
+dotnet test  TestBetta/TestBetta.csproj                               # Requires=Rhino tests need Rhino 8; CI runs the rest
 dotnet pack  Betta.Abstractions/Betta.Abstractions.csproj -c Release  # → ./artifacts/*.nupkg
 ```
 
-`Betta.Abstractions` is the only NuGet-published project (`GeneratePackageOnBuild` is off — pack explicitly). `samples/Betta.Quickstart` restores it from the local `artifacts/` feed to exercise the packaged authoring flow.
+`Betta.Abstractions`, `Betta.Preview` and `Betta.Templates` are published to nuget.org by the release workflow (`GeneratePackageOnBuild` is off — pack explicitly). `samples/Betta.Quickstart` restores it from the local `artifacts/` feed to exercise the packaged authoring flow.
 
 ## Not yet supported
 

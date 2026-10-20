@@ -16,6 +16,7 @@ using Xunit;
 
 namespace TestBetta
 {
+    [Trait("Requires", "Rhino")]
     public class TestParamInjector
     {
         [Fact]

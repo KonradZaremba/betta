@@ -15,6 +15,7 @@ namespace GrasshopperTests
     public DifferentPrimitivesFixture() : base("DifferentPrimitives.gh") { }
   }
 
+  [Trait("Requires", "Rhino")]
   public class TestDifferentPrimitives : IClassFixture<DifferentPrimitivesFixture>
   {
     DifferentPrimitivesFixture fixture { get; set; }

@@ -21,6 +21,7 @@ namespace TestBetta
     /// Grasshopper. The BettaComponent subscribe/coalesce/dispose plumbing is
     /// GH-coupled and is exercised manually via the Ticker component on canvas.
     /// </summary>
+    [Trait("Requires", "Rhino")]
     public class TestStreamingTicker
     {
         private sealed class Collector : IObserver<double>

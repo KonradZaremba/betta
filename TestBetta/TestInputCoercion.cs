@@ -18,6 +18,7 @@ namespace TestBetta
     /// Reached via reflection (same pattern as TestEnumInputs) so we don't widen
     /// the production API. GH-free: no Grasshopper types, no RhinoCore.
     /// </summary>
+    [Trait("Requires", "Rhino")]
     public class TestInputCoercion
     {
         private static object Coerce(object value, Type target)

@@ -15,6 +15,7 @@ namespace TestBetta
     public class RegistryGraphA { }
     public class RegistryGraphB { }
 
+    [Trait("Requires", "Rhino")]
     public class TestParamRegistry
     {
         [Fact]

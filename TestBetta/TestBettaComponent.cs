@@ -29,6 +29,7 @@ namespace TestBetta
     }
     
     [Collection("Primitives.gh collection")]
+    [Trait("Requires", "Rhino")]
     public class TestBettaComponent
     {
         PrimitivesFixture fixture { get; set; }

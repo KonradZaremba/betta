@@ -18,6 +18,10 @@ Lives in **`GrasshopperSingleton.InitializeResolver()`** ([GrasshopperFixture.cs
 
 The resolver must be initialized before any Rhino assembly loads. [RhinoResolverInit.cs](RhinoResolverInit.cs) contributes only the **timing**: its `[ModuleInitializer]` calls `InitializeResolver()` before any test body; the fixtures' static ctors call it too. Never call `RhinoInside.Resolver.Initialize()` anywhere else. `GrasshopperFixture` then starts headless Grasshopper via `GH_RhinoScriptInterface.RunHeadless()`.
 
+## CI and `[Trait("Requires", "Rhino")]`
+
+CI runs `--filter "Requires!=Rhino"` on a runner with no Rhino installed. A test needs the trait if it touches **any** RhinoCommon or Grasshopper type, not only if it starts `RhinoCore`: neither `RhinoCommon.dll` nor `Grasshopper.dll` is in the test output, so they resolve only through `RhinoInside.Resolver`, which throws without a Rhino install (`FileLoadException ... E_POINTER`, inner `NullReferenceException` in `FindRhinoSystemDirectory`). That is why pure-logic classes such as `TestInputCoercion` carry it. Tag the class when all its tests need Rhino, otherwise the method. A plain local `dotnet test` still runs everything.
+
 ## ProjectReferences that look unused
 
 `TestBetta` carries two ProjectReferences no test code uses directly — don't "clean up" either:
@@ -26,6 +30,6 @@ The resolver must be initialized before any Rhino assembly loads. [RhinoResolver
 
 ## Regression surface
 
-- `TestParamInjector.cs` has the pure-reflection tests (descriptor discovery, deterministic GUID generation, MD5 hash format stability, DI registration, `AutoRegisterServices`). These don't need Rhino and should be the primary regression surface.
+- `TestParamInjector.cs` has the pure-reflection tests (descriptor discovery, deterministic GUID generation, MD5 hash format stability, DI registration, `AutoRegisterServices`). They don't start Rhino and should be the primary regression surface, but they load RhinoCommon types, so they need a Rhino install and are skipped on CI.
 - `TestClassDirectDiscovery.cs` covers the class-direct authoring style (attributes on a concrete class, no interface) and the "interface wins" dedup rule. Pure reflection.
 - `TestOutputNaming.cs` covers output naming via `OutputPlanner.PlanOutputs` — `[GrasshopperOutput]`, ValueTuple element names, and defaults. GH-free, so it runs without Rhino.

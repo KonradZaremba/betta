@@ -81,6 +81,7 @@ namespace TestBetta
         }
 
         [Fact]
+        [Trait("Requires", "Rhino")]
         public void GeneratedGuidsMatchReflectionForSimpleSignatures()
         {
             // For methods whose signatures involve only non-generic types,
@@ -114,6 +115,7 @@ namespace TestBetta
         }
 
         [Fact]
+        [Trait("Requires", "Rhino")]
         public void ConvertToDescriptorsAlwaysUsesReflectionGuid()
         {
             // The fast path materialises descriptors whose Guid is recomputed
@@ -132,6 +134,7 @@ namespace TestBetta
         }
 
         [Fact]
+        [Trait("Requires", "Rhino")]
         public void TryLoadFromAssemblyMaterializesDescriptors()
         {
             var asm = LoadOpaqueDemo();
@@ -151,6 +154,7 @@ namespace TestBetta
         }
 
         [Fact]
+        [Trait("Requires", "Rhino")]
         public void RegistryAddDescriptorsAcceptsBootstrapOutput()
         {
             var asm = LoadOpaqueDemo();

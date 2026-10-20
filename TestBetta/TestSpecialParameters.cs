@@ -109,6 +109,7 @@ namespace TestBetta
         }
 
         [Fact]
+        [Trait("Requires", "Rhino")]
         public void IsObservableType_TrueForIObservable_FalseOtherwise()
         {
             Assert.True(InvokeReturnPredicate("IsObservableType", typeof(IObservable<double>)));
@@ -117,6 +118,7 @@ namespace TestBetta
         }
 
         [Fact]
+        [Trait("Requires", "Rhino")]
         public void IsTaskType_TrueForTaskAndValueTask_FalseOtherwise()
         {
             Assert.True(InvokeReturnPredicate("IsTaskType", typeof(Task<double>)));

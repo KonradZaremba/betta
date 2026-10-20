@@ -19,6 +19,7 @@ namespace TestBetta
     /// instantiating Param_BettaGoo&lt;T&gt;). Locks the v0.5/v0.6 additions and
     /// the Bitmap/Image "don't explode into properties" regression.
     /// </summary>
+    [Trait("Requires", "Rhino")]
     public class TestParamVector
     {
         private static IGH_Param Map(Type t) => ParamVector.GetGhParamType(t);

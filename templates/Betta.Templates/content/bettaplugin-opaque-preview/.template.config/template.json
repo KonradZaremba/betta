@@ -16,13 +16,13 @@
     "BettaAbstractionsVersion": {
       "type": "parameter",
       "datatype": "string",
-      "defaultValue": "0.4.0",
+      "defaultValue": "0.7.2.1",
       "replaces": "BETTA_ABSTRACTIONS_VERSION"
     },
     "BettaPreviewVersion": {
       "type": "parameter",
       "datatype": "string",
-      "defaultValue": "0.4.0",
+      "defaultValue": "0.7.2.1",
       "replaces": "BETTA_PREVIEW_VERSION"
     },
     "Category": {

@@ -2,7 +2,7 @@
 
   <!-- Template package — packs three project templates so users can scaffold
        a Betta plugin in one shot:
-         dotnet new install Betta.Templates::0.4.0
+         dotnet new install Betta.Templates
          dotnet new bettaplugin-basic -n MyPlugin
          dotnet new bettaplugin-opaque -n MyPlugin
          dotnet new bettaplugin-opaque-preview -n MyPlugin

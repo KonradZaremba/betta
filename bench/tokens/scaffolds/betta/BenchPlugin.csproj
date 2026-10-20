@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Betta.Abstractions" Version="0.7.2.1" ExcludeAssets="runtime" />
+    <PackageReference Include="RhinoCommon" Version="8.0.23304.9001" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PostBuildEvent>
+      xcopy /Q/Y "$(TargetDir)BenchPlugin.dll" "%25AppData%25\Grasshopper\Libraries\Betta\" &amp; exit /b 0
+    </PostBuildEvent>
+  </PropertyGroup>
+
+</Project>

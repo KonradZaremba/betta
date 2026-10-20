@@ -8,7 +8,7 @@ using System;
 namespace Betta.Attributes
 {
     /// <summary>
-    /// Custom validator for a parameter. <paramref name="ValidatorType"/>
+    /// Custom validator for a parameter. <see cref="ValidatorType"/>
     /// must be a concrete type implementing <see cref="Betta.Interfaces.IBettaValidator"/>
     /// with a public parameterless constructor. The runtime instantiates it
     /// per solve and calls Validate(value) — a non-null return is treated as

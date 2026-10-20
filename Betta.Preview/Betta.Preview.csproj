@@ -14,6 +14,8 @@
     <!-- NuGet package metadata -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>Betta.Preview</PackageId>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <Title>Betta.Preview</Title>
     <Authors>Konrad Zaremba</Authors>
     <Description>Optional preview hook for Betta opaque types — implement IBettaPreview on your domain type and Betta draws it in the Rhino viewport without a hand-written GH_Component / GH_Goo.</Description>
@@ -46,5 +48,10 @@
       xcopy /Q/Y "$(TargetDir)Betta.Preview.dll" "%AppData%\Grasshopper\Libraries\Betta\" &amp; exit /b 0
     </PostBuildEvent>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\media\NBTabBettaMini_Cosmic.png" Pack="true" PackagePath="icon.png" Visible="false" />
+  </ItemGroup>
 
 </Project>

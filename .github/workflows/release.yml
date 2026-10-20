@@ -4,10 +4,10 @@ name: Release
 #   git tag v0.8.0 && git push origin v0.8.0
 #
 # Steps: build Release (which also produces the .yak + drop-in .zip via
-# BuildYak=true) -> pack Betta.Abstractions and check the tag matches its
-# version -> create a GitHub Release with those artifacts -> push
-# Betta.Abstractions to nuget.org via Trusted Publishing -> push the package to
-# Yak / Rhino Package Manager (only if a YAK_TOKEN secret is set).
+# BuildYak=true) -> pack Betta.Abstractions, Betta.Preview and Betta.Templates
+# and check the tag matches their version -> create a GitHub Release with those
+# artifacts -> push all three to nuget.org via Trusted Publishing -> push the
+# package to Yak / Rhino Package Manager (only if a YAK_TOKEN secret is set).
 #
 # nuget.org Trusted Publishing needs a policy on nuget.org (username menu >
 # Trusted Publishing) for owner KonradZaremba, repository betta, workflow file
@@ -46,18 +46,22 @@ jobs:
 
       # Fails before anything is published if the tag and Directory.Build.props
       # disagree - nuget.org versions are immutable, so a wrong push can't be undone.
-      - name: Pack Betta.Abstractions and check tag matches version
+      - name: Pack NuGet packages and check tag matches version
         id: pack
         shell: pwsh
         run: |
           dotnet pack Betta.Abstractions/Betta.Abstractions.csproj -c Release --no-build
+          dotnet pack Betta.Preview/Betta.Preview.csproj -c Release --no-build
+          dotnet pack templates/Betta.Templates/Betta.Templates.csproj -c Release
           $version = "${{ github.ref_name }}".TrimStart('v')
-          $nupkg = "artifacts/Betta.Abstractions.$version.nupkg"
-          if (-not (Test-Path $nupkg)) {
-            $built = (Get-ChildItem artifacts/Betta.Abstractions.*.nupkg).Name -join ', '
-            throw "Tag ${{ github.ref_name }} expects $nupkg, but pack produced: $built. Bump <Version> in Directory.Build.props to match the tag."
+          $expected = 'Betta.Abstractions', 'Betta.Preview', 'Betta.Templates' |
+                      ForEach-Object { "artifacts/$_.$version.nupkg" }
+          $missing = @($expected | Where-Object { -not (Test-Path $_) })
+          if ($missing) {
+            $built = (Get-ChildItem artifacts/*.nupkg).Name -join ', '
+            throw "Tag ${{ github.ref_name }} expects $($missing -join ', '), but pack produced: $built. Bump <Version> in Directory.Build.props to match the tag."
           }
-          "nupkg=$nupkg" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Create GitHub Release
         env:
@@ -80,9 +84,11 @@ jobs:
         with:
           user: konradzaremba     # nuget.org profile name (public package owner), not an email
 
-      - name: Publish Betta.Abstractions to nuget.org
+      # One wildcard push (the pattern NuGet/login documents) so the single
+      # short-lived key covers all three packages; .snupkg symbols ride along.
+      - name: Publish NuGet packages to nuget.org
         shell: pwsh
-        run: dotnet nuget push ${{ steps.pack.outputs.nupkg }} --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "artifacts/*.${{ steps.pack.outputs.version }}.nupkg" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish to Yak (Rhino Package Manager)
         env:

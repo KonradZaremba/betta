@@ -3,6 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using System.Text;
 using System.Text.Json;
 using Betta.Mcp.Protocol;
 using Betta.Mcp.Tools;
@@ -25,8 +26,15 @@ internal static class Program
             return 0;
         }
 
+        // MCP's stdio transport is UTF-8. Console.In/Out use the console code
+        // page on Windows (e.g. 852), which garbles any non-ASCII argument a
+        // client sends, so wrap the raw streams explicitly. The reader also
+        // strips a leading BOM.
+        var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        using var stdin = new StreamReader(Console.OpenStandardInput(), utf8);
+        using var stdout = new StreamWriter(Console.OpenStandardOutput(), utf8);
         var server = new McpServer();
-        await server.RunAsync(Console.In, Console.Out, default).ConfigureAwait(false);
+        await server.RunAsync(stdin, stdout, default).ConfigureAwait(false);
         return 0;
     }
 }

@@ -15,6 +15,7 @@ namespace Betta.Mcp.Tools;
 public sealed class BettaRecentLogsTool : ITool
 {
     public string Name => "betta_recent_logs";
+    public string Title => "Recent Betta log lines";
     public string Description =>
         "Return the last N lines of %AppData%/Grasshopper/Libraries/Betta.log (default 50). Useful for diagnosing why a plugin failed to register or what was loaded at startup.";
 

@@ -16,11 +16,23 @@ public interface ITool
 {
     string Name { get; }
     string Description { get; }
+
+    /// <summary>Short human-readable name for client UIs. Defaults to <see cref="Name"/>.</summary>
+    string Title => Name;
     object InputSchema { get; }
     Task<object> InvokeAsync(JsonElement? arguments);
 
     /// <summary>Default shape consumed by <c>tools/list</c>.</summary>
-    object Describe() => new { name = Name, description = Description, inputSchema = InputSchema };
+    object Describe() => new
+    {
+        name = Name,
+        title = Title,
+        description = Description,
+        inputSchema = InputSchema,
+        // Every tool we ship only reads state. Annotations are valid from MCP
+        // 2025-03-26 onward, so they are safe in both protocol eras.
+        annotations = new { readOnlyHint = true },
+    };
 }
 
 public sealed class ToolRegistry

@@ -16,6 +16,7 @@ namespace Betta.Mcp.Tools;
 public sealed class BettaDescribeTool : ITool
 {
     public string Name => "betta_describe";
+    public string Title => "Describe Betta component";
     public string Description =>
         "Find a Betta-published component by display name and return its descriptor (category, subcategory, method signature, parameters with types, return type, icon resource, deterministic GUID).";
 

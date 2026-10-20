@@ -31,7 +31,40 @@ without the user pasting `Betta.log` or DLL paths into chat.
 | `betta_status` | `{}` | List of DLLs, each with `{file, size, mtime, isBettaPlugin, collectionCount, methodCount}`. |
 | `betta_recent_logs` | `{lines?: int}` (default 50) | The last N lines of `Betta.log`. |
 | `betta_describe` | `{name: string}` | The descriptor for a component by display name (case-insensitive). |
-| `betta_validate_signature` | `{signature: string, opaqueTypes?: string[]}` | Heuristic accept/reject for a method signature against Betta's known parameter / output types. |
+| `betta_validate_signature` | `{signature: string, opaqueTypes?: string[]}` | Heuristic check of a method signature against what the Betta runtime accepts: `{ok, parsed, problems, notes}`. |
+
+All four tools are read-only (`annotations.readOnlyHint: true`).
+
+`betta_validate_signature` follows the runtime, which accepts almost any type
+and degrades what it does not know. `problems` therefore only lists signatures
+that cannot work (unparseable, `void` parameter, ill-formed tuple); `notes`
+lists accepted-but-degraded cases (unknown class return explodes into property
+outputs, unknown parameter type becomes a generic-object input, `IEnumerable<T>`
+is not a list pin, `Bitmap`/`Image` is one generic wire) while `ok` stays
+`true`. It understands `Task`/`ValueTask`/`IObservable<T>` returns, tuples of
+any arity, arrays and `params T[]`, `GH_Structure<T>` trees, `CancellationToken`
+and `IProgress<T>` (no pin), and `[GrasshopperSecret]` / `[GrasshopperTrigger]` /
+`[GrasshopperMenuState]` parameters (no pin; attributes in the signature text
+are stripped).
+
+## Protocol support
+
+The server speaks two MCP eras at once over newline-delimited stdio:
+
+- **2026-07-28 (stateless).** No handshake: each request carries
+  `params._meta["io.modelcontextprotocol/protocolVersion"]`. `server/discover`
+  answers with supported versions, capabilities, server info, instructions,
+  `ttlMs` and `cacheScope`, with or without `_meta`. Results carry
+  `resultType: "complete"` and server info in `_meta`; list/read results add
+  `ttlMs` + `cacheScope` (`public` for tool/resource lists, `private` for
+  `resources/read`, which reflects the local machine). An unsupported version
+  gets error `-32022` with `data.supported` / `data.requested`. Unknown
+  resources return `-32602`.
+- **Legacy (2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25).** `initialize`
+  / `notifications/initialized` / `ping`. `initialize` echoes the client's
+  version when supported, otherwise answers `2025-11-25`; responses carry no
+  modern-only fields. An `initialize` request pins the process to legacy
+  semantics.
 
 ## Resources
 
@@ -42,9 +75,21 @@ without the user pasting `Betta.log` or DLL paths into chat.
 
 ## Wiring it into Claude Desktop
 
-Edit `claude_desktop_config.json` (Settings → Developer → Edit Config) and
-add an entry under `mcpServers`. The simplest form, after a
-`dotnet pack` + `dotnet tool install`:
+Install the tool (once published to NuGet):
+
+```pwsh
+dotnet tool install --global Betta.Mcp
+```
+
+For Claude Code:
+
+```pwsh
+claude mcp add betta -- betta-mcp
+```
+
+For Claude Desktop, edit `claude_desktop_config.json` (Settings → Developer →
+Edit Config) and add an entry under `mcpServers`. The simplest form, after
+installing the tool (or a local `dotnet pack` + `dotnet tool install`):
 
 ```json
 {
@@ -92,7 +137,7 @@ dotnet build Betta.Mcp/Betta.Mcp.csproj -c Release
 
 # Pack (NuGet + dotnet-tool)
 dotnet pack Betta.Mcp/Betta.Mcp.csproj -c Release
-# -> artifacts/Betta.Mcp.0.5.0.nupkg
+# -> artifacts/Betta.Mcp.<version>.nupkg (version comes from Directory.Build.props)
 
 # Install globally as a CLI tool
 dotnet tool install --global Betta.Mcp --add-source artifacts/
@@ -110,6 +155,10 @@ alive?" check is to pipe a single `tools/list` call to it:
 Expected output: a JSON-RPC response whose `result.tools` contains
 `betta_status`, `betta_recent_logs`, `betta_describe`,
 `betta_validate_signature`.
+
+Modern-era probe: `'{"jsonrpc":"2.0","id":1,"method":"server/discover"}' | betta-mcp`.
+
+Tests live in `Betta.Mcp.Tests` (`dotnet test Betta.Mcp.Tests/Betta.Mcp.Tests.csproj`).
 
 A non-interactive one-shot mode is also provided for CI:
 

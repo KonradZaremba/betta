@@ -15,6 +15,7 @@ namespace Betta.Mcp.Tools;
 public sealed class BettaStatusTool : ITool
 {
     public string Name => "betta_status";
+    public string Title => "Betta plugin status";
     public string Description =>
         "List every DLL in the Betta plugin folder (%AppData%/Grasshopper/Libraries/Betta/), report which contain IBettaCollection types and how many [GrasshopperMethod] entries they expose. Uses MetadataLoadContext — does not execute plugin code.";
 

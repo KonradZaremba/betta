@@ -51,7 +51,8 @@ For interface style, move the attributes to `IMyPack : IBettaCollection` and wri
 | Param `T` / `enum` | item input (enum = integer; name string parses) |
 | Param `List<T>`, `T[]`, `params T[]` | list input (access inferred from the CLR type; there is no `[Access]`) |
 | Param `Line`/`Arc`/`Polyline`/`Circle`/`Surface` | accepted as `Curve` / `Brep` |
-| Param `CancellationToken`, `IProgress<T>`, `[GrasshopperMenuState]`/`[GrasshopperSecret]`/`[GrasshopperTrigger]` | no wired pin |
+| Param `CancellationToken`, `IProgress<T>`, `IBettaReport`, `[GrasshopperMenuState]`/`[GrasshopperSecret]`/`[GrasshopperTrigger]` | no wired pin |
+| `throw` in the method / `report.Warning("…")` on an `IBettaReport` param | error, no outputs / warning, outputs still set |
 | Param `GH_Structure<TGoo>`, `[GrasshopperValueList]`, `[GrasshopperRange]`/`[GrasshopperNotEmpty]` | tree / auto value list / validated |
 | Return primitive, Rhino geometry, `List<T>` | one output / one list output |
 | Return `(A a, B b)` or `Tuple<...>` | one output per element |
@@ -70,7 +71,9 @@ Priority: (1) `[GrasshopperOutput("Name", "Nick", "tip")]` on the method or `[re
 
 - **Safe (not hashed):** display `Name`/`NickName`, `Description`, `Category`/`SubCategory`, icon.
 - **Breaks saved files** (component shows missing): renaming the class/namespace or method; changing/reordering parameters or the return type; and, easy to miss, **renaming a parameter** (`double x` to `double value`).
-- **Escape hatch:** `[GrasshopperMethod("Name", Guid = "...")]` pins the id so you can refactor the signature; you then own uniqueness, so use it for published components.
+- **Also breaks saved files, silently:** `FullName` of a generic type includes its type arguments' assembly versions (``List`1[[Rhino.Geometry.Curve, RhinoCommon, Version=8.26…]]``). So with `List<T>`, a tuple, `Task<T>`, `IObservable<T>` or `IProgress<T>` in the signature, the derived GUID changes when the plugin's own version, RhinoCommon (every Rhino update) or .NET changes. Betta.Files' unchanged `Watch Folder` got a new GUID in each of 0.7.1, 0.7.2 and 0.7.2.1.
+- **Pin:** `[GrasshopperMethod("Name", Guid = "...")]` fixes the id for good: signature changes and version changes no longer matter. Pin every published component with a generic signature; for a brand-new component a new GUID is fine.
+- **Refactoring or pinning a published component:** pin the GUID its saved files use, never a new random one: a fresh GUID breaks them just like the signature change would. `betta_describe` (Betta.Mcp) reports the current GUID, whether it is pinned or version-dependent, and every GUID Betta.log recorded for the component, oldest first; the Betta Inspector component shows the live value in Rhino. If you can't get it, say so instead of inventing one.
 - A saved `.gh` showing missing components usually means a signature change or a missing DLL, not a Betta bug.
 
 ## Read when...
@@ -80,6 +83,6 @@ Priority: (1) `[GrasshopperOutput("Name", "Nick", "tip")]` on the method or `[re
 - Returning `Task<T>`, cancellation, `IProgress`, or `IObservable<T>`: `references/async-streaming.md` (streaming is there)
 - Pipeline domain objects, opaque types, viewport preview, bake, `BettaImage`, `IBettaDefault`/`IBettaSerializable`: `references/opaque-preview.md`
 - Right-click menu state, secrets, run trigger, value list: `references/ui-inputs.md`
-- `GH_Structure` trees, branched inputs, `[GrasshopperRange]`/`[GrasshopperNotEmpty]`/custom validators: `references/trees-validation.md`
+- `GH_Structure` trees, branched inputs, `[GrasshopperRange]`/`[GrasshopperNotEmpty]`/custom validators, errors and warnings from the method body: `references/trees-validation.md`
 - Constructor injection, `IBettaModule`, `[GrasshopperRequiresEntitlement]`/`IBettaLicenseGate`: `references/di-licensing.md`
 - Debugging registration (Inspector, `Betta_Status`, `Betta.log`), `dotnet new` templates, Betta.Mcp, `betta-docs`, example projects in the repo: `references/tooling-diagnostics.md`

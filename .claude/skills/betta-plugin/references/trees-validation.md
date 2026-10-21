@@ -28,3 +28,21 @@ Gate parameter values before the method body runs:
 | `[GrasshopperValidation(typeof(MyValidator))]` | Custom rule: `IBettaValidator.Validate(value)` returns null on success or the warning message on failure. |
 
 The component continues solving the next branch; only the offending invocation is skipped.
+
+## Errors and warnings from the method body
+
+Validators run before the method and skip it. For anything found while computing:
+
+- **Error, no outputs:** throw. Betta catches it and shows `Method execution failed: <message>` as an error; the component outputs nothing for that call.
+- **Warning, outputs still set:** take an `IBettaReport` parameter (synthetic, no input pin) and call `report.Warning("…")` or `report.Remark("…")`. Betta shows the messages when it outputs the result: for async methods when the task's result arrives, and for streams everything reported since the subscription opened, on every update. It is thread-safe, identical messages show once, and at most 50 are kept.
+
+```csharp
+[GrasshopperMethod("Shelf Pack", "Packs parts onto sheets")]
+(List<Curve> Outlines, List<int> Unplaced) Pack(List<double> widths, List<double> heights, IBettaReport report)
+{
+    if (widths.Count != heights.Count) throw new ArgumentException("Widths and Heights differ in length");
+    // ... pack ...
+    if (unplaced.Count > 0) report.Warning($"{unplaced.Count} parts didn't fit");
+    return (outlines, unplaced);
+}
+```

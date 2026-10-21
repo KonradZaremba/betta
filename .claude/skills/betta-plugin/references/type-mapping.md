@@ -12,6 +12,7 @@ The core SKILL.md has the compressed table; this is the complete one.
 | Parameter `GH_Structure<TGoo>` | **Tree input**: the whole structure is handed to the method (trees-validation.md) |
 | Parameter `CancellationToken` | Synthetic: bound to a per-solve CTS; cancels when the component re-solves |
 | Parameter `IProgress<T>` | Synthetic: `Report(value)` updates the component's `Message` |
+| Parameter `IBettaReport` | Synthetic: `Warning(…)` / `Remark(…)` show on the component while the outputs are still set (trees-validation.md) |
 | Parameter with `[GrasshopperMenuState]` | **Right-click menu pick**, not a wired input; persisted in the .gh |
 | Parameter with `[GrasshopperSecret("service.key")]` | **Read from OS credential store**, not a wired input; missing values Warn + skip |
 | Parameter with `[GrasshopperTrigger]` on `bool` | No input pin; component adds a "Run" menu item and only fires when clicked |

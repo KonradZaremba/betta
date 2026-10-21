@@ -10,7 +10,7 @@
 ## Tooling
 
 - **Templates**: scaffold a restorable project instead of hand-writing the csproj: `dotnet new install Betta.Templates`, then `dotnet new bettaplugin-basic -n MyPlugin` (plain methods), `bettaplugin-opaque` (opaque domain pipeline) or `bettaplugin-opaque-preview` (opaque + `IBettaPreview`).
-- **Betta.Mcp**: MCP server: `dotnet tool install --global Betta.Mcp`, then `claude mcp add betta -- betta-mcp`. Tools: `betta_validate_signature` (heuristic check that a signature like `"double Cube(double x)"` maps before you write it), `betta_describe` (look up a published component by display name: signature, params, GUID), `betta_status` (DLLs in the Betta folder and method counts, without executing plugin code), `betta_recent_logs` (tail `Betta.log`; why a plugin failed to register).
+- **Betta.Mcp**: MCP server: `dotnet tool install --global Betta.Mcp`, then `claude mcp add betta -- betta-mcp`. Tools: `betta_validate_signature` (heuristic check that a signature like `"double Cube(double x)"` maps before you write it), `betta_describe` (look up a published component by display name: signature, params, GUID, whether the GUID is pinned or version-dependent, and every GUID Betta.log recorded for it: the value to pin), `betta_status` (DLLs in the Betta folder and method counts, without executing plugin code), `betta_recent_logs` (tail `Betta.log`; why a plugin failed to register).
 
 ## Canonical examples (inside the Betta repo, `KonradZaremba/betta`)
 

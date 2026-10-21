@@ -79,6 +79,45 @@ public class ValidateSignatureTests
         Assert.Contains(Strings(r.GetProperty("notes")), n => n.Contains("Mode") && n.Contains("Integer"));
     }
 
+    [Theory]
+    [InlineData("Point3d Mid(Curve c)")]
+    [InlineData("List<Brep> Split(Brep b, Plane p)")]
+    [InlineData("Polyline Outline(Rhino.Geometry.Surface s, Interval u)")]
+    public async Task Geometry_types_need_no_note_with_or_without_namespace(string sig)
+    {
+        var r = await Validate(sig);
+        Assert.True(r.GetProperty("ok").GetBoolean());
+        Assert.Empty(Strings(r.GetProperty("notes")));
+    }
+
+    [Theory]
+    [InlineData("List<Curve> Pack(List<double> widths)")]
+    [InlineData("(double Sum, double Mean) Stats(double[] xs)")]
+    [InlineData("double Slow(double x, IProgress<int> progress)")]
+    public async Task Generic_signature_without_a_pinned_guid_gets_pin_advice(string sig)
+    {
+        var r = await Validate(sig);
+        Assert.Contains("Guid = ", r.GetProperty("guidAdvice").GetString());
+    }
+
+    [Theory]
+    [InlineData("[GrasshopperMethod(\"Pack\", Guid = \"8b18f440-198b-0ca5-ac87-0a05f9815894\")] List<Curve> Pack(List<double> widths)")]
+    [InlineData("double Cube(double x)")]
+    [InlineData("Curve[] Offsets(Curve c, double[] distances)")]
+    public async Task Pinned_or_non_generic_signatures_get_no_pin_advice(string sig)
+    {
+        var r = await Validate(sig);
+        Assert.Equal(JsonValueKind.Null, r.GetProperty("guidAdvice").ValueKind);
+    }
+
+    [Fact]
+    public async Task Report_parameter_is_synthetic_and_needs_no_note()
+    {
+        var r = await Validate("List<Curve> Pack(List<double> widths, IBettaReport report)");
+        Assert.True(r.GetProperty("ok").GetBoolean());
+        Assert.Empty(Strings(r.GetProperty("notes")));
+    }
+
     [Fact]
     public async Task Opaque_types_need_no_note()
     {

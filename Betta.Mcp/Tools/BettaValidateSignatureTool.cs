@@ -28,7 +28,7 @@ namespace Betta.Mcp.Tools;
 ///     8+ element ValueTuples flatten via TRest) — one output per element.</item>
 ///   <item><c>Task</c>, <c>Task&lt;T&gt;</c>, <c>ValueTask</c>, <c>ValueTask&lt;T&gt;</c> (async) and
 ///     <c>IObservable&lt;T&gt;</c> (streaming) returns are unwrapped.</item>
-///   <item>Synthetic parameters: <c>CancellationToken</c> and <c>IProgress&lt;T&gt;</c> get no input pin;
+///   <item>Synthetic parameters: <c>CancellationToken</c>, <c>IProgress&lt;T&gt;</c> and <c>IBettaReport</c> get no input pin;
 ///     parameters marked <c>[GrasshopperSecret]</c>, <c>[GrasshopperMenuState]</c> or
 ///     <c>[GrasshopperTrigger]</c> are menu/credential driven and get none either.
 ///     C# attributes in the signature text are tolerated and stripped.</item>
@@ -45,7 +45,7 @@ public sealed class BettaValidateSignatureTool : ITool
     public string Name => "betta_validate_signature";
     public string Title => "Validate Betta method signature";
     public string Description =>
-        "Heuristically check whether a method signature (e.g. \"double Cube(double x)\") would be accepted by Betta's runtime, including async/streaming returns, tuples of any arity, arrays/params, CancellationToken/IProgress<T> and [GrasshopperSecret/Trigger/MenuState] parameters. Returns ok=true/false, a list of problems, and notes where the runtime accepts but degrades a type (unknown class -> property outputs, unknown parameter -> generic object).";
+        "Heuristically check whether a method signature (e.g. \"double Cube(double x)\") would be accepted by Betta's runtime, including async/streaming returns, tuples of any arity, arrays/params, CancellationToken/IProgress<T>/IBettaReport and [GrasshopperSecret/Trigger/MenuState] parameters. Returns ok=true/false, a list of problems, and notes where the runtime accepts but degrades a type (unknown class -> property outputs, unknown parameter -> generic object), plus guidAdvice when generic types would make the derived GUID change with plugin, Rhino or .NET versions.";
 
     public object InputSchema => new
     {
@@ -84,6 +84,10 @@ public sealed class BettaValidateSignatureTool : ITool
         "DateTime", "System.DateTime",
         "Guid", "System.Guid",
         "Color", "System.Drawing.Color",
+        // Rhino.Geometry types ParamVector maps to a typed param, as written after `using Rhino.Geometry;`.
+        // Fully qualified Rhino.Geometry.* names are accepted separately in Classify.
+        "Arc", "BoundingBox", "Box", "Brep", "Circle", "Curve", "Interval", "Line", "Mesh",
+        "Plane", "Point3d", "Polyline", "Surface", "Transform", "Vector3d",
     };
 
     private static readonly HashSet<string> ImageTypeNames = new(StringComparer.Ordinal)
@@ -153,7 +157,25 @@ public sealed class BettaValidateSignatureTool : ITool
             parsed = new { returnType = parsed.ReturnType, name = parsed.MethodName, parameters = parsed.Parameters },
             problems,
             notes,
+            guidAdvice = GuidAdvice(sig, parsed),
         });
+    }
+
+    /// <summary>
+    /// Type.FullName of a generic type assembly-qualifies its arguments, so a derived GUID hashes their
+    /// assemblies' versions. Every parameter counts, synthetic ones (IProgress&lt;T&gt;) included.
+    /// </summary>
+    private static string? GuidAdvice(string signature, ParsedSignature parsed)
+    {
+        if (System.Text.RegularExpressions.Regex.IsMatch(signature, @"\bGuid\s*=")) return null;
+        var generic = parsed.Parameters.Select(p => p.Type).Append(parsed.ReturnType)
+            .Where(t => t.Contains('<') || t.TrimStart().StartsWith("(", StringComparison.Ordinal))
+            .Distinct().ToList();
+        if (generic.Count == 0) return null;
+        return $"Generic types in the signature ({string.Join(", ", generic)}) put assembly versions into the derived GUID: " +
+               "your plugin's, RhinoCommon's or .NET's. It then changes when any of them updates, and saved .gh files lose " +
+               "the component. Pin it: [GrasshopperMethod(\"...\", Guid = \"...\")] with a new GUID for a new component, or, " +
+               "for a published one, the GUID its saved files use (betta_describe shows it and the GUIDs Betta has logged).";
     }
 
     // --- parsing ---
@@ -400,7 +422,7 @@ public sealed class BettaValidateSignatureTool : ITool
     private static bool IsSyntheticType(string typeText)
     {
         var t = typeText.Trim();
-        if (StripNamespace(t) == "CancellationToken") return true;
+        if (StripNamespace(t) is "CancellationToken" or "IBettaReport") return true;
         return TryGetGeneric(t, out var name, out var args) && name == "IProgress" && args.Count == 1;
     }
 

@@ -38,10 +38,12 @@ public sealed class PluginInspector : IDisposable
 
     private readonly MetadataLoadContext _mlc;
     private readonly string _pluginFolder;
+    private readonly string _logFile;
 
-    public PluginInspector(string? pluginFolder = null)
+    public PluginInspector(string? pluginFolder = null, string? logFile = null)
     {
         _pluginFolder = pluginFolder ?? Paths.PluginFolder;
+        _logFile = logFile ?? Paths.LogFile;
 
         // The resolver needs to find the framework reference assemblies plus
         // anything sitting alongside the plugin (Betta.Abstractions.dll, the
@@ -73,6 +75,12 @@ public sealed class PluginInspector : IDisposable
         // System.Runtime.dll live.
         var runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
         probe.AddRange(Directory.GetFiles(runtimeDir, "*.dll"));
+
+        // RhinoCommon and Grasshopper from the Rhino install. Plugins reference them with
+        // ExcludeAssets="runtime", so they are never next to the plugin, yet a signature like
+        // List<Curve> can't be named without them. The installed versions are also the ones
+        // Rhino hashes into derived GUIDs.
+        probe.AddRange(Paths.RhinoAssemblies.Where(File.Exists));
 
         var resolver = new PathAssemblyResolver(probe.Distinct());
         _mlc = new MetadataLoadContext(resolver);
@@ -173,13 +181,21 @@ public sealed class PluginInspector : IDisposable
     {
         if (!Directory.Exists(_pluginFolder)) return null;
 
-        foreach (var dll in Directory.GetFiles(_pluginFolder, "*.dll"))
+        foreach (var dll in Directory.GetFiles(_pluginFolder, "*.dll").Where(IsPluginCandidate))
         {
             Assembly asm;
-            try { asm = _mlc.LoadFromAssemblyPath(dll); }
-            catch { continue; }
+            (List<Type> Interfaces, List<Type> Classes) collections;
+            try
+            {
+                asm = _mlc.LoadFromAssemblyPath(dll);
+                collections = SelectCollectionTypes(asm);
+            }
+            catch (Exception ex) when (ex is FileLoadException or FileNotFoundException or BadImageFormatException or TypeLoadException)
+            {
+                continue;
+            }
 
-            var (interfaceTypes, classTypes) = SelectCollectionTypes(asm);
+            var (interfaceTypes, classTypes) = collections;
             foreach (var t in interfaceTypes.Concat(classTypes))
             {
                 var (colCategory, colSubCategory) = ReadCollectionCategory(t);
@@ -193,7 +209,7 @@ public sealed class PluginInspector : IDisposable
                     if (!string.Equals(displayName, componentName, StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    return new DescribedComponent
+                    var d = new DescribedComponent
                     {
                         SourceFile = Path.GetFileName(dll),
                         ServiceType = t.FullName ?? t.Name,
@@ -205,9 +221,16 @@ public sealed class PluginInspector : IDisposable
                         SubCategory = NamedString(named, "SubCategory") ?? colSubCategory ?? "General",
                         IconResource = NamedString(named, "IconResource"),
                         Enabled = NamedBool(named, "Enabled") ?? true,
-                        Guid = ComputeDeterministicGuid(t, m).ToString(),
-                        ReturnType = m.ReturnType?.FullName ?? m.ReturnType?.Name ?? "void",
-                        Parameters = m.GetParameters().Select(p => new DescribedParameter
+                    };
+                    d.LoggedGuids = ReadLoggedGuids(d.Category, d.SubCategory, d.Name);
+                    // ComponentRegistry uses [GrasshopperMethod(Guid = ...)] when set, so a pinned GUID wins here too.
+                    d.GuidPinned = System.Guid.TryParse(NamedString(named, "Guid"), out var pinned);
+
+                    try
+                    {
+                        d.Guid = d.GuidPinned ? pinned.ToString() : ComputeDeterministicGuid(t, m).ToString();
+                        d.ReturnType = m.ReturnType?.FullName ?? m.ReturnType?.Name ?? "void";
+                        d.Parameters = m.GetParameters().Select(p => new DescribedParameter
                         {
                             Name = NamedString(AttributeReader.NamedArgumentsOfAttr(p, ParameterAttribute), "Name") ?? p.Name ?? string.Empty,
                             NickName = NamedString(AttributeReader.NamedArgumentsOfAttr(p, ParameterAttribute), "NickName") ?? p.Name ?? string.Empty,
@@ -215,15 +238,120 @@ public sealed class PluginInspector : IDisposable
                             ClrName = p.Name ?? string.Empty,
                             Type = p.ParameterType.FullName ?? p.ParameterType.Name,
                             Optional = NamedBool(AttributeReader.NamedArgumentsOfAttr(p, ParameterAttribute), "Optional") ?? false,
-                        }).ToList(),
-                    };
+                        }).ToList();
+                        if (!d.GuidPinned)
+                            d.VersionedAssemblies = VersionedAssembliesOf(m);
+                    }
+                    catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or TypeLoadException)
+                    {
+                        // A type in the signature lives in an assembly this server can't find.
+                        d.Notes.Add($"Couldn't resolve a type in the signature ({ex.Message}), so the GUID can't be computed here. " +
+                                    "loggedGuids, or the Betta Inspector component in Rhino, shows the published value.");
+                        return d;
+                    }
+
+                    d.GuidVersionDependent = d.VersionedAssemblies.Count > 0;
+                    d.Notes.Add(GuidNote(d));
+                    return d;
                 }
             }
         }
         return null;
     }
 
+    /// <summary>
+    /// True when the DLL references Betta.Abstractions, read from its metadata without loading it.
+    /// A plugin must (IBettaCollection lives there); its bundled dependencies don't, and loading
+    /// them explicitly collides with the copies the resolver already picked.
+    /// </summary>
+    public static bool IsPluginCandidate(string dllPath)
+    {
+        try
+        {
+            using var stream = File.OpenRead(dllPath);
+            using var pe = new System.Reflection.PortableExecutable.PEReader(stream);
+            if (!pe.HasMetadata) return false;
+            var md = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(pe);
+            foreach (var handle in md.AssemblyReferences)
+                if (md.GetString(md.GetAssemblyReference(handle).Name) == "Betta.Abstractions") return true;
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     // --- helpers ---
+
+    private static string GuidNote(DescribedComponent d)
+    {
+        var pin = $"[GrasshopperMethod(..., Guid = \"{d.Guid}\")]";
+        if (d.GuidPinned)
+            return "Pinned with [GrasshopperMethod(Guid = ...)]: it never changes, whatever happens to the signature or to assembly versions.";
+        if (d.GuidVersionDependent)
+            return "Derived from a signature with generic types, whose names include these assembly versions: " +
+                   string.Join(", ", d.VersionedAssemblies) + ". The GUID changes whenever one of them does (a new build of the plugin, " +
+                   $"a Rhino update, a .NET switch), and saved .gh files then lose the component. Pin it now with {pin}. " +
+                   "If saved files were made with an earlier build, pin the GUID they use instead: loggedGuids lists what Betta has " +
+                   "published, oldest first. This value is computed with this server's .NET 8 and the installed RhinoCommon; " +
+                   "if it differs from the last loggedGuids entry, trust the log.";
+        return "Derived from the signature: renaming the method or its type, or renaming, reordering or retyping a parameter " +
+               $"changes it and breaks saved .gh files. Pin it with {pin} before such a change.";
+    }
+
+    /// <summary>
+    /// Assemblies whose versions end up in the GUID hash: <c>Type.FullName</c> of a generic type
+    /// assembly-qualifies its type arguments (<c>List`1[[Rhino.Geometry.Curve, RhinoCommon, Version=8.26…]]</c>).
+    /// </summary>
+    private static List<string> VersionedAssembliesOf(MethodInfo m)
+    {
+        var found = new SortedSet<string>(StringComparer.Ordinal);
+        void Walk(Type type, bool isTypeArgument)
+        {
+            if (type.HasElementType) { Walk(type.GetElementType()!, isTypeArgument); return; }
+            if (isTypeArgument)
+            {
+                var name = type.Assembly.GetName();
+                found.Add($"{name.Name} {name.Version}");
+            }
+            if (type.IsGenericType)
+                foreach (var arg in type.GetGenericArguments()) Walk(arg, true);
+        }
+        foreach (var p in m.GetParameters()) Walk(p.ParameterType, false);
+        Walk(m.ReturnType, false);
+        return found.ToList();
+    }
+
+    /// <summary>
+    /// The GUIDs Betta.log recorded for a component (ComponentRegistry logs "+ Category/SubCategory/Name (guid)"
+    /// on every registration), distinct, ordered by last appearance. Shared read: Rhino may be writing the log.
+    /// </summary>
+    private List<string> ReadLoggedGuids(string category, string subCategory, string name)
+    {
+        var result = new List<string>();
+        if (!File.Exists(_logFile)) return result;
+        var marker = $" + {category}/{subCategory}/{name} (";
+        try
+        {
+            using var stream = new FileStream(_logFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            string? line;
+            while ((line = reader.ReadLine()) != null)
+            {
+                var at = line.IndexOf(marker, StringComparison.Ordinal);
+                if (at < 0) continue;
+                var start = at + marker.Length;
+                var end = line.IndexOf(')', start);
+                if (end < 0 || !System.Guid.TryParse(line.AsSpan(start, end - start), out var g)) continue;
+                var s = g.ToString();
+                result.Remove(s);
+                result.Add(s);
+            }
+        }
+        catch (IOException) { }
+        return result;
+    }
 
     private static IEnumerable<Type> SafeGetTypes(Assembly asm)
     {
@@ -310,6 +438,15 @@ public sealed class DescribedComponent
     public string? IconResource { get; set; }
     public bool Enabled { get; set; }
     public string Guid { get; set; } = string.Empty;
+    /// <summary>Set with [GrasshopperMethod(Guid = ...)], so it never changes.</summary>
+    public bool GuidPinned { get; set; }
+    /// <summary>Derived, and the signature's generic types embed assembly versions in the hash.</summary>
+    public bool GuidVersionDependent { get; set; }
+    /// <summary>"Name Version" of each assembly whose version is in the hash.</summary>
+    public List<string> VersionedAssemblies { get; set; } = new();
+    /// <summary>GUIDs Betta.log recorded for this component, oldest first.</summary>
+    public List<string> LoggedGuids { get; set; } = new();
+    public List<string> Notes { get; set; } = new();
     public string ReturnType { get; set; } = string.Empty;
     public List<DescribedParameter> Parameters { get; set; } = new();
 }

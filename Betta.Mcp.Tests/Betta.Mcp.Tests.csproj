@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Betta.Mcp\Betta.Mcp.csproj" />
+    <!-- Only for DescribeTests' fixture collection; Betta.Mcp itself matches Betta types by name. -->
+    <ProjectReference Include="..\Betta.Abstractions\Betta.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

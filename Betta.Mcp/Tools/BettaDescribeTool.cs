@@ -18,7 +18,9 @@ public sealed class BettaDescribeTool : ITool
     public string Name => "betta_describe";
     public string Title => "Describe Betta component";
     public string Description =>
-        "Find a Betta-published component by display name and return its descriptor (category, subcategory, method signature, parameters with types, return type, icon resource, deterministic GUID).";
+        "Find a Betta-published component by display name and return its descriptor (category, subcategory, method signature, parameters with types, return type, icon resource, GUID). " +
+        "Also says whether the GUID is pinned or derived from the signature, which assembly versions a derived GUID depends on, and every GUID Betta.log recorded for the component (oldest first). " +
+        "Use it before changing a published component, to pin the GUID its saved .gh files use.";
 
     public object InputSchema => new
     {

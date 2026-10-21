@@ -30,6 +30,35 @@ public static class Paths
     }
 
     /// <summary>
+    /// Rhino 8's <c>System</c> folder (RhinoCommon.dll). <c>BETTA_RHINO_SYSTEM_FOLDER</c> overrides the
+    /// default install location.
+    /// </summary>
+    public static string RhinoSystemFolder
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("BETTA_RHINO_SYSTEM_FOLDER");
+            if (!string.IsNullOrEmpty(env)) return env!;
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "Rhino 8", "System");
+        }
+    }
+
+    /// <summary>RhinoCommon, Grasshopper and GH_IO in a Rhino install; some may not exist.</summary>
+    public static IEnumerable<string> RhinoAssemblies
+    {
+        get
+        {
+            var system = RhinoSystemFolder;
+            var grasshopper = Path.Combine(Path.GetDirectoryName(system) ?? system, "Plug-ins", "Grasshopper");
+            yield return Path.Combine(system, "RhinoCommon.dll");
+            yield return Path.Combine(grasshopper, "Grasshopper.dll");
+            yield return Path.Combine(grasshopper, "GH_IO.dll");
+        }
+    }
+
+    /// <summary>
     /// The append-only log Startup writes to via FileLoggerProvider.
     /// </summary>
     public static string LogFile

@@ -46,7 +46,7 @@ This package contains only the attributes and interfaces needed to author a Bett
 | Attribute | Target | Purpose |
 |---|---|---|
 | `[GrasshopperCollection(category, subCategory)]` | interface / class | Default Category + SubCategory for every method on the type. |
-| `[GrasshopperMethod(name)]` | method | Marks the method as a Grasshopper component. Optional: `NickName`, `Description`, `Category`, `SubCategory`, `IconResource`, `Guid`, `Enabled`. |
+| `[GrasshopperMethod(name)]` | method | Marks the method as a Grasshopper component. Optional: `NickName`, `Description`, `Category`, `SubCategory`, `IconResource`, `Guid`, `Enabled`. Pin `Guid` on every component you publish: the derived one changes with the signature and, for generic signatures (`List<T>`, tuples, `Task<T>`), with your plugin's, Rhino's or .NET's version, and saved `.gh` files then lose the component. Betta.Mcp's `betta_describe` shows the value to pin. |
 | `[GrasshopperParameter(name, ...)]` | parameter | Customizes input display name / nickname / description. List access is inferred from the CLR type (`List<T>` → list input). `DefaultValue = ...` seeds persistent data so unwired sockets carry your default. |
 | `[GrasshopperOpaque]` | class / interface / method / `[return:]` | Opt the return type out of "explode into properties" — Betta ships it as a single typed wire via an auto-generated `Param_BettaGoo<T>` (deterministic ComponentGuid = MD5 of `T.FullName`). |
 | `[GrasshopperRange(min, max)]` | parameter | Numeric range check; out-of-range surfaces a Warning + skips the invocation. |
@@ -56,6 +56,7 @@ This package contains only the attributes and interfaces needed to author a Bett
 | `[GrasshopperSecret("service.key")]` | `string` parameter | Not a wired input. Value read from the OS credential store at solve time. Set via the `Betta_Secrets` Rhino command / GH menu. |
 | `[GrasshopperTrigger]` | `bool` parameter | Not a wired input. Component adds a "Run" menu item; the method only fires when clicked. Method body can read the bool to distinguish manual runs from cache re-solves. |
 | `[GrasshopperValueList("a", "b", ...)]` | parameter | Normal wired input, but Betta auto-attaches a `GH_ValueList` seeded with those items when the component is placed on the canvas. Skips inputs the user has already wired. |
+| `IBettaReport` (parameter type) | parameter | Not a wired input. `report.Warning(…)` / `report.Remark(…)` show on the component while the method still returns its outputs; throw instead for an error with no outputs. |
 | `[GrasshopperRequiresEntitlement("k")]` | method / class | Inert annotation. Enforced only when a plugin registers `IBettaLicenseGate` (see [Betta.Pro](https://github.com/KonradZaremba/betta.pro)); otherwise the method runs freely (OSS mode). |
 
 ## Markers and module hook

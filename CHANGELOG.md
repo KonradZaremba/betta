@@ -6,10 +6,14 @@ All notable changes to Betta are documented here. Versions follow
 ## [Unreleased]
 
 ### Added
+- **Warnings from inside a method** — take an `IBettaReport` parameter (no input pin, like `CancellationToken`) and call `report.Warning(…)` or `report.Remark(…)`: the message shows on the component while its outputs are still set. Works for async and streaming methods. Throwing still gives an error with no outputs. The template agent guide and the skill describe both. In the token benchmark's bigger tasks this took agents from 2.5x to 1.06x the cost of a hand-written component, and from 0 of 6 to 6 of 6 showing the warning.
+- **GUID pinning help in Betta.Mcp** — `betta_describe` says whether a component's GUID is pinned or derived, which assembly versions a derived GUID depends on, and lists every GUID Betta.log recorded for it, so you can pin the one your saved files use. `betta_validate_signature` returns `guidAdvice` for signatures whose derived GUID would be version-dependent.
 - **Betta.Preview, Betta.Templates and Betta.Mcp on nuget.org**, published by the release workflow alongside Betta.Abstractions. Install the MCP server with `dotnet tool install --global Betta.Mcp`.
 - **Betta.Mcp speaks MCP 2026-07-28** (stateless, `server/discover`) and still serves clients that use the older `initialize` handshake. Tools are marked read-only.
 - **IntelliSense docs** — Betta.Abstractions now ships its XML documentation.
 - **CI** — every push and PR builds the solution and runs the headless test suite.
+- **Agent guide in the `dotnet new` templates** — new plugin projects get a short `CLAUDE.md` + `AGENTS.md` with the Betta facts coding agents most often get wrong (async, streaming, named outputs, GUID stability on refactors). Measured in `bench/tokens` (run 7, seven tasks): about the cost of the hand-written `GH_Component` route (1.03x) with 0.64x the code, 0.64x the cost for five components at once. It points agents at Betta.Mcp's `betta_describe` for a component's current GUID; with the server attached, 9 of 9 benchmark refactors kept saved files working (0 of 18 without it).
+- **Token benchmark** (`bench/tokens`) — headless Claude Code runs comparing Betta and plain `GH_Component` projects on cost, tokens, turns and code size.
 - Headless tests for the async result cache (livelock + memoization), plugin-vs-dependency classification, and template version drift.
 
 ### Fixed
@@ -18,10 +22,15 @@ All notable changes to Betta are documented here. Versions follow
 - `betta_validate_signature` rejected valid signatures using features from 0.5–0.7 (streaming `IObservable<T>`, `ValueTask`, `CancellationToken`/`IProgress<T>`, `params` arrays, parameter attributes). It now matches the runtime.
 - Betta.Mcp answered `initialize` with whatever protocol version the client asked for, even ones it doesn't implement.
 - Betta.Mcp decoded stdin with the Windows console code page instead of UTF-8, garbling any non-ASCII tool argument (paths, names).
+- Betta.Mcp's `betta_describe` reported the signature-derived GUID even for a component that pins one with `[GrasshopperMethod(Guid = …)]`. Betta publishes the pinned value, so a GUID copied from the tool could break saved `.gh` files.
+- `betta_describe` failed for every component when the plugin folder also held dependency DLLs (System.Text.Json, Azure.*, …), and for any signature with a Rhino type inside a generic (`List<Curve>`), because RhinoCommon wasn't on its resolver path.
+- `betta_validate_signature` recognised geometry types only fully qualified: `Curve`, `Point3d`, `Brep` and the rest, as normally written, got a false note that they flow as untyped wires.
 - The `betta-plugin` agent skill pointed authors at Betta.Abstractions 0.3.1 and missed streaming, the templates and Betta.Mcp.
 
 ### Changed
+- **Pin the GUID of published components.** A derived GUID with a generic type in the signature (`List<T>`, tuples, `Task<T>`, `IObservable<T>`) changes with the plugin's own version, every Rhino update and the .NET version, and saved `.gh` files then lose the component. Betta.log shows Betta.Files' `Watch Folder` with a new GUID in each of 0.7.1, 0.7.2 and 0.7.2.1. README, the template agent guide and the skill now say to pin `[GrasshopperMethod(Guid = …)]`; a version-independent hash is on the roadmap.
 - The async result cache moved out of `BettaComponent` into `AsyncResultCache` (no behavior change).
+- The `betta-plugin` agent skill is split into a ~6k-char core plus reference files read on demand (loading it cost ~8.5k tokens per session before, ~2.5k now).
 
 ## [0.7.2.1] — 2026-08-19
 

@@ -37,7 +37,7 @@
 
 Every Grasshopper component is the same process. Subclass `GH_Component`. Hand-register each input and output. Invent a stable GUID. Draw a 24×24 icon. Marshal types in and out of `SolveInstance`. That's forty lines of plumbing before you write the one line you actually came for.
 
-**Write your logic. Betta does the rest.** Decorate a plain C# method with an attribute — Betta generates a stable GUID, inputs, outputs and an icon, a real component you can use on the canvas. It's the idea behind Dynamo's *ZeroTouch*, brought to Grasshopper: **put a DLL in, get nodes out.**
+**Write your logic. Betta does the rest.** Decorate a plain C# method with an attribute — Betta generates the GUID, inputs, outputs and an icon, a real component you can use on the canvas. It's the idea behind Dynamo's *ZeroTouch*, brought to Grasshopper: **put a DLL in, get nodes out.**
 
 ```csharp
 [GrasshopperCollection("Curve", "Analysis")]
@@ -52,7 +52,7 @@ public class CurveTools : IBettaCollection
 }
 ```
 
-That's a ribbon tab, a component, and all its ports — done. No `GH_Component`, no `RegisterInputParams`, no `SolveInstance`, no GUID to babysit.
+That's a ribbon tab, a component, and all its ports — done. No `GH_Component`, no `RegisterInputParams`, no `SolveInstance`, no GUID until you publish.
 
 <details>
 <summary><b>👉 The same <i>single</i> component, hand-written the usual way</b></summary>
@@ -96,7 +96,7 @@ And every component wears the same betta silhouette, so the family reads as one 
 
 Betta can be used for AI-assisted authoring — the repo ships a Claude Code skill and a `CLAUDE.md` that hand a coding agent the contract: the attributes, the return-type → output mapping, the deploy path, the GUID-stability gotchas. Drop any agent session into this repo and it knows how to add a component without being told twice.
 
-Sure, an LLM can author a full `GH_Component` from scratch — and it usually does, after a few rounds of fixing the GUID, the param-access modes, and the icon plumbing. With Betta the agent only writes the function body; everything around it is generated deterministically at runtime, so refactors don't re-spend tokens on boilerplate and there's far less hallucinated code in the diff to review.
+Sure, an LLM can author a full `GH_Component` from scratch — and it usually does, after a few rounds of fixing the GUID, the param-access modes, and the icon plumbing. With Betta the agent only writes the function body; everything around it is generated deterministically at runtime. Projects created with `dotnet new bettaplugin-*` include a short agent guide (`CLAUDE.md` / `AGENTS.md`). In a [benchmark](bench/tokens/RESULTS.md) of headless Claude Code sessions with that guide, across seven tasks from one small component to ~100-line algorithms, agents wrote about a third less code than for the hand-written `GH_Component` equivalent (0.64x) at about the same cost (1.03x), and 0.64x the cost for a five-component request. The guide has them pin a GUID on components with generic signatures, so saved files survive plugin, Rhino and .NET updates; that rule costs a few turns, and making derived GUIDs version-independent (on the [roadmap](ROADMAP.md)) would remove it. Refactors are where tooling matters: renaming a parameter changes a derived GUID, and agents can't work out the old one on their own (0 of 18 refactors kept it). With Betta.Mcp attached they look it up and pin it: 9 of 9 kept saved files working, at about 0.95x the cost of the hand-written refactor.
 
 **Betta.Mcp** gives any MCP client (Claude Code, Claude Desktop, Cursor) live answers instead of guesses: check a method signature before writing it, look up a published component's GUID and params, list what's loaded, and tail `Betta.log` when a plugin fails to register. It reads plugin DLLs without executing them.
 
@@ -152,6 +152,16 @@ If a class implements a marked interface, the interface wins (no double registra
 | `[GrasshopperCollection(category, sub)]` | interface / class | Default Category + SubCategory for the type's methods. |
 | `[GrasshopperMethod(name)]` | method | Publishes the method as a component. Also: `NickName`, `Description`, `Category`, `SubCategory`, `IconResource`, `Guid`, `Enabled`. |
 | `[GrasshopperParameter(name, …)]` | parameter | Input display name/nickname/description. `List<T>` → list input automatically. `DefaultValue = …` seeds unwired sockets. |
+
+### Saved files: pin the GUID of a published component
+
+A saved `.gh` file finds each component by its GUID. Betta derives it from the method's signature unless you pin one:
+
+```csharp
+[GrasshopperMethod("Watch Folder", Guid = "496ff8ba-9cd2-d735-5486-1db5a0d655f7")]
+```
+
+A derived GUID changes when you rename the method, its type or a parameter, or reorder or retype a parameter. With a generic type in the signature (`List<T>`, a tuple, `Task<T>`, `IObservable<T>`) it also changes when your plugin's version, Rhino or .NET updates, because .NET writes those assembly versions into the type's name. So pin the GUID of every component you publish, using the value its saved files already use: `betta_describe` in [Betta.Mcp](#ai-ready) shows it, along with every GUID Betta has logged for that component. Version-independent derived GUIDs are on the [roadmap](ROADMAP.md).
 
 ### Outputs are inferred from the return type
 
@@ -244,6 +254,22 @@ double Scaled(
 ```
 
 For richer rules implement `IBettaValidator` and attach with `[GrasshopperValidation(typeof(MyValidator))]`.
+
+### Errors and warnings from the method
+
+Throw to fail: Betta shows the exception's message as an error and the component outputs nothing. To warn and still output results, take an `IBettaReport` parameter (no input pin, filled in by Betta like `CancellationToken`):
+
+```csharp
+[GrasshopperMethod("Shelf Pack")]
+(List<Curve> Outlines, List<int> Unplaced) Pack(List<double> widths, List<double> heights, IBettaReport report)
+{
+    // ...
+    if (unplaced.Count > 0) report.Warning($"{unplaced.Count} parts didn't fit");
+    return (outlines, unplaced);
+}
+```
+
+Messages appear with the result, also for async and streaming methods.
 
 ### Async with cancellation & progress
 

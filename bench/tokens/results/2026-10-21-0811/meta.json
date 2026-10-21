@@ -1,0 +1,18 @@
+{
+    "date":  "2026-10-21 08:11",
+    "model":  "sonnet",
+    "runs":  3,
+    "max_turns":  40,
+    "max_budget_usd":  3,
+    "arms":  [
+                 "betta",
+                 "betta-noskill",
+                 "vanilla"
+             ],
+    "git_commit":  "ad3a908",
+    "dry_run":  false,
+    "extra_args":  [
+
+                   ],
+    "isolation_flags":  "--setting-sources project,local --strict-mcp-config --mcp-config \u003cempty\u003e --no-session-persistence --permission-mode acceptEdits --allowedTools Read Edit Write Glob Grep Bash(dotnet build:*) Bash(dotnet restore:*) PowerShell(dotnet build:*) PowerShell(dotnet restore:*) Bash(ls:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(grep:*) Bash(find:*)"
+}

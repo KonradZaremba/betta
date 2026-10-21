@@ -4,8 +4,8 @@
   plain GH_Component project. See README.md. Real runs bill your Claude usage; use -DryRun first.
 #>
 param(
-    [string[]]$Tasks = @('t1-remap', 't2-divide', 't3-async', 't4-multi', 't5-refactor'),   # full names or prefixes (t1, t2, ...)
-    [string[]]$Arms = @('betta', 'betta-noskill', 'vanilla'),   # betta = scaffold + skill; betta-noskill = scaffold only; vanilla = plain GH_Component
+    [string[]]$Tasks = @('t1-remap', 't2-divide', 't3-async', 't4-multi', 't5-refactor', 't6-shelfpack', 't7-panels'),   # full names or prefixes (t1, t2, ...)
+    [string[]]$Arms = @('betta', 'betta-noskill', 'vanilla'),   # betta = scaffold + skill; betta-noskill = scaffold only; vanilla = plain GH_Component; more in $knownArms
     [int]$Runs = 3,
     [string]$Model = 'sonnet',
     [int]$MaxTurns = 40,
@@ -13,10 +13,16 @@ param(
     [string]$OutDir,
     [string[]]$ExtraArgs = @(),
     [int]$TimeoutMinutes = 45,
+    # Betta.Abstractions version for the betta scaffold, e.g. a local prerelease with an unpublished API. It must already
+    # be in the NuGet global packages folder; the harness adds no package source.
+    [string]$AbstractionsVersion,
     [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
+# `powershell -File run.ps1 -Arms a,b` passes "a,b" as one string; split it so both invocation styles work.
+$Arms = @($Arms | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+$Tasks = @($Tasks | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 . (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $PSScriptRoot 'measure.ps1')
 
@@ -37,8 +43,18 @@ $wsRoot = Join-Path 'C:\tmp\betta-bench' $runId
 $mcpConfig = Join-Path $OutDir 'mcp-empty.json'
 [IO.File]::WriteAllText($mcpConfig, '{"mcpServers":{}}', (New-Object Text.UTF8Encoding($false)))
 
+# The betta scaffold's post-build step copies BenchPlugin.dll into the real %AppData%\Grasshopper\Libraries\Betta.
+# MSBuild imports the nearest ancestor Directory.Build.targets after the project body, so this blanks it for
+# every workspace without changing the scaffold the agent reads.
+New-Item -ItemType Directory -Force -Path $wsRoot | Out-Null
+[IO.File]::WriteAllText((Join-Path $wsRoot 'Directory.Build.targets'),
+    "<Project>`n  <PropertyGroup>`n    <PostBuildEvent></PostBuildEvent>`n  </PropertyGroup>`n</Project>`n", (New-Object Text.UTF8Encoding($false)))
+
 $skillSrc = Join-Path $repoRoot '.claude\skills\betta-plugin'
-$knownArms = @('betta', 'betta-noskill', 'vanilla')
+# betta-guide / betta-guide-skill add the agent guide the dotnet-new templates ship (CLAUDE.md), without / with the skill.
+# betta-guide-mcp adds the guide plus the Betta.Mcp server, pointed at a Libraries folder holding the task's published build.
+$knownArms = @('betta', 'betta-noskill', 'betta-guide', 'betta-guide-skill', 'betta-guide-mcp', 'vanilla')
+$guideSrc = Join-Path $repoRoot 'templates\Betta.Templates\content\bettaplugin-basic\CLAUDE.md'
 foreach ($a in $Arms) { if ($knownArms -notcontains $a) { throw "Unknown arm '$a'. Known arms: $($knownArms -join ', ')" } }
 function Get-ScaffoldName([string]$arm) { if ($arm -eq 'vanilla') { return 'vanilla' } else { return 'betta' } }
 # Read-only: ties the run to the skill version it used.
@@ -55,10 +71,36 @@ $allowedTools = @('Read', 'Edit', 'Write', 'Glob', 'Grep',
     'Bash(ls:*)', 'Bash(cat:*)', 'Bash(head:*)', 'Bash(tail:*)', 'Bash(grep:*)', 'Bash(find:*)')
 $isolationFlags = '--setting-sources project,local --strict-mcp-config --mcp-config <empty> --no-session-persistence --permission-mode acceptEdits --allowedTools ' + ($allowedTools -join ' ')
 
+# Betta.Mcp built from this checkout: the betta-guide-mcp arm's server, and the GUID check below.
+$mcpDir = Join-Path $wsRoot '_mcp'
+$mb = Invoke-Native -FilePath 'dotnet' -WorkingDirectory $repoRoot -ArgumentList @('build', 'Betta.Mcp\Betta.Mcp.csproj', '-c', 'Release', '-o', $mcpDir, '--nologo')
+if ($mb.ExitCode -ne 0) { throw "Betta.Mcp build failed:`n$($mb.Stdout)" }
+$mcpExe = Join-Path $mcpDir 'betta-mcp.exe'
+# PowerShell names are case-insensitive, so these must not be called $abstractionsVersion (that is the parameter).
+$scaffoldAbstractionsVersion = [regex]::Match([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'scaffolds\betta\BenchPlugin.csproj')),
+    'Include="Betta.Abstractions" Version="([^"]+)"').Groups[1].Value
+$usedAbstractionsVersion = if ($AbstractionsVersion) { $AbstractionsVersion } else { $scaffoldAbstractionsVersion }
+# Rewrites the betta scaffold's Betta.Abstractions version in a copied project (base dirs and workspaces alike,
+# so it never counts as code the agent added).
+function Set-AbstractionsVersion([string]$dir) {
+    if ($usedAbstractionsVersion -eq $scaffoldAbstractionsVersion) { return }
+    $proj = Join-Path $dir 'BenchPlugin.csproj'
+    $txt = [IO.File]::ReadAllText($proj)
+    $new = $txt.Replace("Include=""Betta.Abstractions"" Version=""$scaffoldAbstractionsVersion""", "Include=""Betta.Abstractions"" Version=""$usedAbstractionsVersion""")
+    if ($new -eq $txt -and $txt -match 'Include="Betta.Abstractions"') { throw "Could not set Betta.Abstractions $usedAbstractionsVersion in $proj" }
+    [IO.File]::WriteAllText($proj, $new, (New-Object Text.UTF8Encoding($false)))
+}
+$nugetRoot = if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path $env:USERPROFILE '.nuget\packages' }
+$abstractionsDll = Join-Path $nugetRoot "betta.abstractions\$usedAbstractionsVersion\lib\netstandard2.0\Betta.Abstractions.dll"
+# Tasks that change an existing component: its display name. The run records the GUID Betta publishes for it
+# after the agent's change and whether it still equals the published one (saved .gh files keep working).
+$guidCheck = @{ 't5-refactor' = 'Remap' }
+
 $meta = [ordered]@{
     date = (Get-Date).ToString('yyyy-MM-dd HH:mm'); model = $Model; runs = $Runs; max_turns = $MaxTurns
     max_budget_usd = $MaxBudgetUsd; arms = $Arms; git_commit = $gitCommit; dry_run = [bool]$DryRun
-    extra_args = $ExtraArgs; isolation_flags = $isolationFlags
+    extra_args = $ExtraArgs; isolation_flags = $isolationFlags; abstractions_version = $usedAbstractionsVersion
+    mcp_arm = 'betta-guide-mcp: --mcp-config with one stdio server "betta" (Betta.Mcp from this checkout, BETTA_PLUGIN_FOLDER = the task''s published build) and mcp__betta + ToolSearch added to --allowedTools'
 }
 [IO.File]::WriteAllText((Join-Path $OutDir 'meta.json'), ($meta | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 
@@ -150,8 +192,28 @@ function Get-BaseDir([string]$task, [string]$scaffold) {
     Copy-Clean (Join-Path $PSScriptRoot "scaffolds\$scaffold") $dir
     $seed = Join-Path $PSScriptRoot "tasks\$task.seed\$scaffold"
     if (Test-Path $seed) { Copy-Item -Path (Join-Path $seed '*') -Destination $dir -Recurse -Force }
+    Set-AbstractionsVersion $dir
     $baseDirs[$key] = $dir
     return $dir
+}
+# The task's starting code built once (Release): what a user already has deployed and saved files refer to.
+$published = @{}
+function Get-PublishedBuild([string]$task) {
+    if ($published.ContainsKey($task)) { return $published[$task] }
+    $dir = Join-Path $wsRoot "_published\$task"
+    if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+    Copy-Clean (Get-BaseDir $task 'betta') $dir
+    $b = Invoke-Native -FilePath 'dotnet' -WorkingDirectory $dir -ArgumentList @('build', '-c', 'Release', '--nologo')
+    if ($b.ExitCode -ne 0) { throw "Published build of $task failed:`n$($b.Stdout)" }
+    $dll = Join-Path $dir 'bin\Release\net7.0-windows\BenchPlugin.dll'
+    $guid = $null
+    if ($guidCheck.ContainsKey($task)) {
+        $guid = Get-BettaComponentGuid -McpExe $mcpExe -Component $guidCheck[$task] `
+            -PluginFolder (New-BettaLibraries -Dir (Join-Path $wsRoot "_published\$task-libs") -PluginDll $dll -AbstractionsDll $abstractionsDll)
+        if (-not $guid) { throw "betta_describe found no '$($guidCheck[$task])' in the published build of $task" }
+    }
+    $published[$task] = @{ Dll = $dll; Guid = $guid }
+    return $published[$task]
 }
 
 foreach ($tf in $taskFiles) {
@@ -159,8 +221,12 @@ foreach ($tf in $taskFiles) {
     $prompt = [IO.File]::ReadAllText($tf.FullName).Trim()
     foreach ($arm in $Arms) {
         $scaffold = Get-ScaffoldName $arm
-        $withSkill = ($arm -eq 'betta')
+        $withSkill = ($arm -eq 'betta' -or $arm -eq 'betta-guide-skill')
+        $withGuide = ($arm -like 'betta-guide*')
+        $withMcp = ($arm -eq 'betta-guide-mcp')
         $baseDir = Get-BaseDir $task $scaffold
+        $pub = $null
+        if ($scaffold -eq 'betta' -and ($withMcp -or $guidCheck.ContainsKey($task))) { $pub = Get-PublishedBuild $task }
         $seed = Join-Path $PSScriptRoot "tasks\$task.seed\$scaffold"
         for ($n = 1; $n -le $Runs; $n++) {
             $name = "$task-$arm-$n"
@@ -169,6 +235,9 @@ foreach ($tf in $taskFiles) {
             New-Item -ItemType Directory -Force -Path $ws | Out-Null
             Copy-Item -Path (Join-Path $PSScriptRoot "scaffolds\$scaffold\*") -Destination $ws -Recurse -Force
             if (Test-Path $seed) { Copy-Item -Path (Join-Path $seed '*') -Destination $ws -Recurse -Force }
+            Set-AbstractionsVersion $ws
+            # measure.ps1 excludes CLAUDE.md, so the guide never counts as code the agent added.
+            if ($withGuide) { Copy-Item -Path $guideSrc -Destination (Join-Path $ws 'CLAUDE.md') -Force }
 
             if ($withSkill) {
                 $skillDir = Join-Path $ws '.claude\skills\betta-plugin'
@@ -181,10 +250,21 @@ foreach ($tf in $taskFiles) {
                 }
             }
 
+            $runMcpConfig = $mcpConfig
+            $runTools = $allowedTools
+            if ($withMcp) {
+                # Outside the workspace, so it is neither project content nor counted as added code.
+                $libs = New-BettaLibraries -Dir (Join-Path $wsRoot "_libs\$name") -PluginDll $pub.Dll -AbstractionsDll $abstractionsDll
+                $runMcpConfig = Join-Path $wsRoot "_libs\$name.mcp.json"
+                $cfg = @{ mcpServers = @{ betta = @{ type = 'stdio'; command = $mcpExe; args = @(); env = @{ BETTA_PLUGIN_FOLDER = $libs } } } }
+                [IO.File]::WriteAllText($runMcpConfig, ($cfg | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
+                $runTools = $allowedTools + @('mcp__betta', 'ToolSearch')   # MCP tool schemas are deferred behind ToolSearch
+            }
+
             $claudeArgs = @('-p', $prompt, '--output-format', 'json', '--model', $Model,
-                '--setting-sources', 'project,local', '--strict-mcp-config', '--mcp-config', $mcpConfig,
+                '--setting-sources', 'project,local', '--strict-mcp-config', '--mcp-config', $runMcpConfig,
                 '--no-session-persistence', '--permission-mode', 'acceptEdits',
-                '--allowedTools') + $allowedTools + @(
+                '--allowedTools') + $runTools + @(
                 '--max-turns', "$MaxTurns", '--max-budget-usd', "$MaxBudgetUsd") + $ExtraArgs
 
             Write-Host "[$name] workspace: $ws"
@@ -209,6 +289,13 @@ foreach ($tf in $taskFiles) {
             $r = Read-ClaudeResult $rawPath
             $build = Test-WorkspaceBuild $ws
             $m = Measure-AddedCode -Scaffold $baseDir -Workspace $ws
+            $guid = $null; $guidKept = $null
+            $builtDll = Join-Path $ws 'bin\Release\net7.0-windows\BenchPlugin.dll'
+            if ($pub -and $pub.Guid -and $build.Pass -and (Test-Path $builtDll)) {
+                $guid = Get-BettaComponentGuid -McpExe $mcpExe -Component $guidCheck[$task] `
+                    -PluginFolder (New-BettaLibraries -Dir (Join-Path $wsRoot "_check\$name") -PluginDll $builtDll -AbstractionsDll $abstractionsDll)
+                $guidKept = ($guid -eq $pub.Guid)
+            }
 
             $row = [pscustomobject][ordered]@{
                 task = $task; arm = $arm; run = $n; exit_code = $exit
@@ -220,9 +307,10 @@ foreach ($tf in $taskFiles) {
                 build_pass = $build.Pass; build_errors = $build.Errors
                 files_changed = $m.files_changed; added_lines = $m.added_lines
                 added_chars = $m.added_chars; added_est_tokens = $m.added_est_tokens
+                guid = $guid; guid_kept = $guidKept
             }
             $row | Export-Csv -Path $csvPath -Append -NoTypeInformation -Encoding UTF8
-            Write-Host ("  exit={0} build_pass={1} errors={2} added_lines={3} total_tokens={4}" -f $exit, $build.Pass, $build.Errors, $m.added_lines, $r.total_tokens)
+            Write-Host ("  exit={0} build_pass={1} errors={2} added_lines={3} total_tokens={4} guid_kept={5}" -f $exit, $build.Pass, $build.Errors, $m.added_lines, $r.total_tokens, $guidKept)
         }
     }
 }

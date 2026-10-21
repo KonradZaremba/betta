@@ -1,0 +1,21 @@
+{
+    "date":  "2026-10-21 16:20",
+    "model":  "sonnet",
+    "runs":  3,
+    "max_turns":  40,
+    "max_budget_usd":  3,
+    "arms":  [
+                 "betta-guide",
+                 "vanilla",
+                 "betta-guide-mcp"
+             ],
+    "git_commit":  "ad3a908",
+    "dry_run":  false,
+    "extra_args":  [
+
+                   ],
+    "isolation_flags":  "--setting-sources project,local --strict-mcp-config --mcp-config \u003cempty\u003e --no-session-persistence --permission-mode acceptEdits --allowedTools Read Edit Write Glob Grep Bash(dotnet build:*) Bash(dotnet restore:*) PowerShell(dotnet build:*) PowerShell(dotnet restore:*) Bash(ls:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(grep:*) Bash(find:*)",
+    "abstractions_version":  "0.8.0-bench.1",
+    "mcp_arm":  "betta-guide-mcp: --mcp-config with one stdio server \"betta\" (Betta.Mcp from this checkout, BETTA_PLUGIN_FOLDER = the task\u0027s published build) and mcp__betta + ToolSearch added to --allowedTools",
+    "note":  "Two invocations into one folder: all 7 tasks x (betta-guide, vanilla), then t5 x betta-guide-mcp. Template guide with the errors/warnings and GUID-pinning bullets."
+}

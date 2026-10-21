@@ -1,0 +1,13 @@
+﻿"task","arm","run","exit_code","subtype","is_error","num_turns","duration_ms","total_cost_usd","models","input_tokens","cache_creation_input_tokens","cache_read_input_tokens","output_tokens","total_tokens","final_context_tokens","build_pass","build_errors","files_changed","added_lines","added_chars","added_est_tokens","guid","guid_kept"
+"t6-shelfpack","betta-guide","1","0","success","False","22","140535","0.2831419","claude-haiku-5-5;claude-sonnet-5-5","1776","32705","845806","6771","887058","61901","True","0","1","132","5451","1363",,
+"t6-shelfpack","betta-guide","2","0","success","False","23","115582","0.2795136","claude-haiku-5-5;claude-sonnet-5-5","1778","29577","879003","7327","917685","58773","True","0","1","134","5466","1367",,
+"t6-shelfpack","betta-guide","3","0","success","False","20","76657","0.228579","claude-haiku-5-5;claude-sonnet-5-5","1772","22756","720817","6545","751890","51952","True","0","1","139","5733","1434",,
+"t6-shelfpack","vanilla","1","0","success","False","6","39171","0.1069742","claude-haiku-5-5;claude-sonnet-5-5","1746","12755","140629","4192","159322","41951","True","0","1","183","7410","1853",,
+"t6-shelfpack","vanilla","2","0","success","False","6","40703","0.11150689999999999","claude-haiku-5-5;claude-sonnet-5-5","1748","12675","182216","4261","200900","41871","True","0","1","177","7258","1815",,
+"t6-shelfpack","vanilla","3","0","success","False","7","45105","0.14679889999999998","claude-haiku-5-5;claude-sonnet-5-5","1748","15352","181956","6722","205778","44548","True","0","1","174","7113","1779",,
+"t7-panels","betta-guide","1","0","success","False","19","71875","0.19861299999999998","claude-haiku-5-5;claude-sonnet-5-5","1640","20128","662152","5187","689107","49324","True","0","1","86","3853","964",,
+"t7-panels","betta-guide","2","0","success","False","26","111817","0.2649812","claude-haiku-5-5;claude-sonnet-5-5","1648","25016","867654","7812","902130","54212","True","0","1","85","3773","944",,
+"t7-panels","betta-guide","3","0","success","False","21","118156","0.2336173","claude-haiku-5-5;claude-sonnet-5-5","1646","23015","821195","5941","851797","52211","True","0","1","90","3979","995",,
+"t7-panels","vanilla","1","0","success","False","7","36544","0.0976186","claude-haiku-5-5;claude-sonnet-5-5","1616","11953","140388","3580","157537","41149","True","0","1","135","5784","1446",,
+"t7-panels","vanilla","2","0","success","False","6","32144","0.0947752","claude-haiku-5-5;claude-sonnet-5-5","1616","11797","140194","3360","156967","40993","True","0","1","142","5897","1475",,
+"t7-panels","vanilla","3","0","success","False","6","35706","0.0926889","claude-haiku-5-5;claude-sonnet-5-5","1616","11678","140191","3199","156684","40874","True","0","1","127","5505","1377",,

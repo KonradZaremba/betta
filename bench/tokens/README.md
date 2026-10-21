@@ -7,14 +7,17 @@ plus how much code the result contains.
 Latest results and what they mean: [RESULTS.md](RESULTS.md).
 
 **Real runs bill your Claude usage.** Each run is capped by `-MaxBudgetUsd` (default 3) and `-MaxTurns`
-(default 40), but a full run is 5 tasks x 3 arms x 3 runs = 45 sessions, all billed to your Claude usage. Dry-run first.
+(default 40), but a full run is 7 tasks x 3 arms x 3 runs = 63 sessions, all billed to your Claude usage. Dry-run first.
 
 ## What is measured
 
 - Per run (`runs.csv`): exit code, result subtype, turns, duration, cost, tokens (summed from `modelUsage`:
   input, cache creation, cache read, output; top-level `usage` if `modelUsage` is absent), and
   `final_context_tokens` (context size of the last API call, from the last `usage.iterations` element).
-- Independently of the agent: `dotnet build -c Release` in the workspace (pass/fail, error count).
+- Independently of the agent: `dotnet build -c Release` in the workspace (pass/fail, error count). Benchmark builds
+  never deploy: a `Directory.Build.targets` above the workspaces blanks the scaffold's copy into `%AppData%`.
+- For a task that changes an existing component (`t5`): the GUID Betta publishes for it after the change, read with
+  Betta.Mcp's `betta_describe`, and `guid_kept` = whether it still equals the published build's GUID.
 - Code the agent added: `git diff --no-index -U0` of scaffold+seed vs workspace (ignoring `bin/`, `obj/`, `.claude/`):
   files changed, added lines, added chars, `added_est_tokens` = ceil(chars / 4). **est.** only; not a tokenizer.
 - Reference implementations (`reference/`): the minimal idiomatic code for each task in each style, measured
@@ -30,11 +33,17 @@ Tasks (`tasks/`; prompt text is identical for every arm):
 | `t3-async` | add "Async Stats" (Data, async) |
 | `t4-multi` | add five components in one go: Remap, Clamp, Lerp, Divide Curve Stats, Async Stats |
 | `t5-refactor` | change the existing "Remap": rename input, add a boolean input and a second output, move subcategory |
+| `t6-shelfpack` | add "Shelf Pack": about 100 lines of packing logic, list inputs, an error case and a warn-but-still-output case |
+| `t7-panels` | add "Panel Grid": surface panelling and flatness check, same error and warning cases |
 
 Arms (`-Arms`, default `betta betta-noskill vanilla`; an unknown arm throws):
 
 - `betta`: `scaffolds/betta` plus the whole `.claude/skills/betta-plugin/` folder (SKILL.md and `references/`).
 - `betta-noskill`: `scaffolds/betta` with no `.claude` folder.
+- `betta-guide`: `scaffolds/betta` plus the `CLAUDE.md` agent guide the `dotnet new` templates ship (what a new project has).
+- `betta-guide-skill`: the guide plus the skill.
+- `betta-guide-mcp`: the guide plus Betta.Mcp, built from this checkout and pointed at a Libraries folder holding the
+  task's published (unchanged) build.
 - `vanilla`: `scaffolds/vanilla` (plain `GH_Component`).
 
 Seeds: a task may have `tasks/<task>.seed/<scaffold>/` (scaffold is `betta` or `vanilla`; `betta-noskill` uses
@@ -58,6 +67,9 @@ powershell -NoProfile -File bench/tokens/run.ps1 -DryRun -Runs 1
 # 2. real run (bills your usage)
 powershell -NoProfile -File bench/tokens/run.ps1 -Runs 3
 powershell -NoProfile -File bench/tokens/run.ps1 -Tasks t1 -Arms betta,betta-noskill -Runs 1   # subset of tasks and arms
+# an unpublished SDK API: pack Betta.Abstractions as a unique prerelease, restore it once into the NuGet cache
+# (e.g. `dotnet restore <any project> --source <pack folder> --source https://api.nuget.org/v3/index.json`), then:
+powershell -NoProfile -File bench/tokens/run.ps1 -Tasks t6,t7 -Arms betta-guide -AbstractionsVersion 0.8.0-bench.1
 ```
 
 Output goes to `bench/tokens/results/<yyyy-MM-dd-HHmm>/` (`runs.csv`, `report.md`, `meta.json`, `raw/*.json`,

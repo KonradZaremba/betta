@@ -1,0 +1,18 @@
+{
+    "date":  "2026-10-21 12:01",
+    "model":  "sonnet",
+    "runs":  6,
+    "max_turns":  40,
+    "max_budget_usd":  3,
+    "arms":  [
+                 "betta-guide-mcp"
+             ],
+    "git_commit":  "ad3a908",
+    "dry_run":  false,
+    "extra_args":  [
+
+                   ],
+    "isolation_flags":  "--setting-sources project,local --strict-mcp-config --mcp-config \u003cempty\u003e --no-session-persistence --permission-mode acceptEdits --allowedTools Read Edit Write Glob Grep Bash(dotnet build:*) Bash(dotnet restore:*) PowerShell(dotnet build:*) PowerShell(dotnet restore:*) Bash(ls:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(grep:*) Bash(find:*)",
+    "mcp_arm":  "betta-guide-mcp: --mcp-config with one stdio server \"betta\" (Betta.Mcp from this checkout, BETTA_PLUGIN_FOLDER = the task\u0027s published build) and mcp__betta + ToolSearch added to --allowedTools",
+    "merged":  "t5 vanilla rows copied from run 2026-10-21-0811 and t5 betta-guide rows from run 2026-10-21-0926 (same model, day, scaffold and task; not re-run). Their guid/guid_kept were computed afterwards from the saved workspaces with the same check: betta_describe on the Release build, or Remap.cs\u0027s ComponentGuid for vanilla."
+}

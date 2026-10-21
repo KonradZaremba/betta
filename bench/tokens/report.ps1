@@ -61,6 +61,8 @@ if ($meta) {
     if ($meta.PSObject.Properties['skill_mode']) { Add ('- Skill mode (betta arm): {0}' -f $meta.skill_mode) }
     if ($meta.PSObject.Properties['git_commit'] -and $meta.git_commit) { Add ('- Repo commit (skill version): {0}' -f $meta.git_commit) }
     Add ('- Isolation flags: `{0}`' -f $meta.isolation_flags)
+    if ($meta.PSObject.Properties['mcp_arm'] -and @($meta.arms) -contains 'betta-guide-mcp') { Add ('- MCP arm: {0}' -f $meta.mcp_arm) }
+    if ($meta.PSObject.Properties['merged']) { Add ('- Merged rows: {0}' -f $meta.merged) }
     if ($meta.extra_args) { Add ('- Extra args: `{0}`' -f ($meta.extra_args -join ' ')) }
     if ($meta.dry_run) { Add '- **DRY RUN: no agent was run; token columns are empty.**' }
 }
@@ -70,8 +72,8 @@ Add ''
 # Per task x arm
 Add '## Per task and arm (median (min-max))'
 Add ''
-Add '| Task | Arm | n | total_tokens | output_tokens | cost USD | turns | duration s | final context tokens | build pass | added est. tokens |'
-Add '|---|---|---|---|---|---|---|---|---|---|---|'
+Add '| Task | Arm | n | total_tokens | output_tokens | cost USD | turns | duration s | final context tokens | build pass | added est. tokens | GUID kept |'
+Add '|---|---|---|---|---|---|---|---|---|---|---|---|'
 $tasks = @($rows | ForEach-Object { $_.task } | Select-Object -Unique)
 $arms = @($rows | ForEach-Object { $_.arm } | Select-Object -Unique)
 $cell = @{}
@@ -81,11 +83,14 @@ foreach ($t in $tasks) {
         if ($set.Count -eq 0) { continue }
         $cell["$t|$a"] = $set
         $pass = @($set | Where-Object { $_.build_pass -eq 'True' }).Count
-        Add ('| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9}/{2} | {10} |' -f $t, $a, $set.Count,
+        # guid_kept is only recorded for tasks that change an existing component (older runs lack the column).
+        $checked = @($set | Where-Object { $_.PSObject.Properties['guid_kept'] -and $_.guid_kept -ne '' })
+        $kept = if ($checked.Count -gt 0) { '{0}/{1}' -f @($checked | Where-Object { $_.guid_kept -eq 'True' }).Count, $checked.Count } else { 'n/a' }
+        Add ('| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9}/{2} | {10} | {11} |' -f $t, $a, $set.Count,
             (Format-Stat $set 'total_tokens' '#,0'), (Format-Stat $set 'output_tokens' '#,0'),
             (Format-Stat $set 'total_cost_usd' '0.000'), (Format-Stat $set 'num_turns' '0.#'),
             (Format-Stat $set 'duration_ms' '0.0' 1000), (Format-Stat $set 'final_context_tokens' '#,0'),
-            $pass, (Format-Stat $set 'added_est_tokens' '#,0'))
+            $pass, (Format-Stat $set 'added_est_tokens' '#,0'), $kept)
     }
 }
 Add ''
@@ -114,7 +119,8 @@ foreach ($a in $arms) {
 }
 Add ''
 
-# Ratio vs vanilla
+# Ratio vs vanilla (only when the run has vanilla rows, e.g. not for a guide-only batch)
+if ($arms -contains 'vanilla') {
 Add '## Ratio vs vanilla (median of arm / median of vanilla; below 1.00x favours the arm)'
 Add ''
 Add '| Task | Arm | total_tokens | output_tokens | cost USD | turns | added est. tokens |'
@@ -136,6 +142,7 @@ foreach ($t in ($tasks + 'ALL')) {
     }
 }
 Add ''
+}
 
 # Skill effect: betta vs betta-noskill, per task and overall
 if ($arms -contains 'betta' -and $arms -contains 'betta-noskill') {

@@ -23,7 +23,7 @@ function Get-EstTokens([long]$Chars) { return [long][math]::Ceiling($Chars / 4.0
 # Copies a tree without build output / agent config so they never show up in the diff.
 function Copy-Clean([string]$From, [string]$To) {
     New-Item -ItemType Directory -Force -Path $To | Out-Null
-    & robocopy $From $To /E /XD bin obj .claude .git /NFL /NDL /NJH /NJS /NP | Out-Null
+    & robocopy $From $To /E /XD bin obj .claude .git /XF CLAUDE.md AGENTS.md /NFL /NDL /NJH /NJS /NP | Out-Null
     # robocopy exit codes below 8 mean success
     $global:LASTEXITCODE = 0
 }

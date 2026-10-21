@@ -134,6 +134,7 @@ namespace Betta.Components
             // cancels the prior one: an infinite "computing" livelock. Fold them
             // to a constant so the key depends only on the real wired inputs.
             if (a is CancellationToken) { sb.Append("ct"); return; }
+            if (a is Betta.Interfaces.IBettaReport) { sb.Append("rp"); return; }
             if (t.GetInterfaces().Any(i => i.IsGenericType &&
                                            i.GetGenericTypeDefinition() == typeof(IProgress<>)))
             { sb.Append("pg"); return; }

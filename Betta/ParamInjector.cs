@@ -68,7 +68,7 @@ namespace Betta
         }
 
         public static bool IsSyntheticParameter(Type t) =>
-            t == typeof(CancellationToken) || IsProgressType(t);
+            t == typeof(CancellationToken) || IsProgressType(t) || t == typeof(IBettaReport);
 
         public static bool IsProgressType(Type t) =>
             t != null && t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IProgress<>);
@@ -200,16 +200,18 @@ namespace Betta
         /// Build ordered, strongly-typed argument array for Method.Invoke.
         /// Tree-typed inputs (GH_Structure&lt;TGoo&gt;) bypass the per-iteration
         /// expando bag and are taken straight from the GH input's VolatileData
-        /// so the method body sees the entire tree intact. CancellationToken
-        /// and IProgress&lt;T&gt; parameters are synthesized from the component's
-        /// own CTS / progress sink — they never appear as wired inputs.
+        /// so the method body sees the entire tree intact. CancellationToken,
+        /// IProgress&lt;T&gt; and IBettaReport parameters are synthesized from the
+        /// component's own CTS / progress sink / report — they never appear as
+        /// wired inputs.
         /// </summary>
         public object[] BuildArguments(
             ExpandoObject batch,
             CancellationToken cancellationToken = default,
             Action<object> reportProgress = null,
             IDictionary<string, object> menuState = null,
-            bool triggered = false)
+            bool triggered = false,
+            IBettaReport report = null)
         {
             if (Inputs == null || !Inputs.Any())
                 return Array.Empty<object>();
@@ -240,6 +242,14 @@ namespace Betta
                 if (IsProgressType(p.ParameterType))
                 {
                     ordered.Add(BuildProgressInstance(p.ParameterType, reportProgress));
+                    continue;
+                }
+
+                // Synthetic: IBettaReport → the component posts its messages
+                // when it outputs this call's result.
+                if (p.ParameterType == typeof(IBettaReport))
+                {
+                    ordered.Add(report ?? new Betta.Components.BettaReport());
                     continue;
                 }
 

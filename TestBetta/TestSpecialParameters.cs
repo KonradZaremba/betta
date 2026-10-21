@@ -56,6 +56,13 @@ namespace TestBetta
             Assert.True(Betta.ParamInjector.IsSyntheticParameter(typeof(IProgress<double>)));
         }
 
+        [Fact]
+        public void Report_IsSynthetic()
+        {
+            Assert.True(Betta.ParamInjector.IsSyntheticParameter(typeof(Betta.Interfaces.IBettaReport)));
+            Assert.False(Betta.ParamInjector.IsProgressType(typeof(Betta.Interfaces.IBettaReport)));
+        }
+
         [Theory]
         [InlineData(typeof(double))]
         [InlineData(typeof(string))]

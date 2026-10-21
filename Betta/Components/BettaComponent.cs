@@ -63,6 +63,7 @@ namespace Betta.Components
         private readonly object _streamLock = new();
         private IDisposable _streamSubscription;
         private string _streamKey;
+        private BettaReport _streamReport;
         private object _streamLatest;
         private bool _streamHasValue;
         private int _streamExpirePending;
@@ -224,8 +225,10 @@ namespace Betta.Components
                         // a method's IProgress<string>.Report or IProgress<int>.Report
                         // surfaces as the GH "computing 35 %" tag. Menu state:
                         // the persisted per-instance dictionary populates any
-                        // [GrasshopperMenuState] params.
+                        // [GrasshopperMenuState] params. Report: collects the
+                        // method's IBettaReport messages, posted with its result.
                         object[] args;
+                        var report = new BettaReport();
                         try
                         {
                             args = _paramInjector.BuildArguments(
@@ -233,7 +236,8 @@ namespace Betta.Components
                                 _solveCts?.Token ?? CancellationToken.None,
                                 value => { try { Message = value?.ToString(); } catch { } },
                                 _menuState,
-                                triggered);
+                                triggered,
+                                report);
                         }
                         catch (BettaValidationException bv)
                         {
@@ -264,7 +268,7 @@ namespace Betta.Components
                         object result;
                         if (_isAsync)
                         {
-                            if (!TryGetAsyncResult(args, out result))
+                            if (!TryGetAsyncResult(args, report, out result))
                             {
                                 // Task is in flight; when it completes, ExpireSolution
                                 // fires and the re-solve takes the cache-hit branch.
@@ -276,7 +280,7 @@ namespace Betta.Components
                         }
                         else if (_isStreaming)
                         {
-                            if (!TryGetStreamResult(args, out result))
+                            if (!TryGetStreamResult(args, report, out result))
                             {
                                 // Subscribed, but the source hasn't pushed a value yet.
                                 // The next emission calls ExpireSolution and the
@@ -288,7 +292,9 @@ namespace Betta.Components
                         }
                         else
                         {
-                            result = _paramInjector.Method.Invoke(_service, args);
+                            // Messages reported before a throw still show next to the error.
+                            try { result = _paramInjector.Method.Invoke(_service, args); }
+                            finally { PostReport(report); }
                         }
 
                         _logger.LogDebug("{Name}: result = {Result}", _descriptor.Name, Format(result));
@@ -483,12 +489,18 @@ namespace Betta.Components
         /// registry in <see cref="AsyncResultCache"/>: only one task runs per
         /// (component, key) pair at a time.
         /// </summary>
-        private bool TryGetAsyncResult(object[] args, out object result)
+        private bool TryGetAsyncResult(object[] args, BettaReport launchReport, out object result)
         {
             var key = AsyncResultCache.KeyFor(args);
             switch (_asyncResults.TryGet(key, out result))
             {
                 case AsyncResultCache.Lookup.Hit:
+                    // The messages were reported into the launching solve's report.
+                    if (result is ReportedResult reported)
+                    {
+                        PostReport(reported.Report);
+                        result = reported.Value;
+                    }
                     return true;
                 case AsyncResultCache.Lookup.InFlight:
                     // Same compute already running — let it finish; its
@@ -537,7 +549,7 @@ namespace Betta.Components
 
                 // Task<T>.Result via reflection (can't cast the non-generic Task).
                 var resultProp = t.GetType().GetProperty("Result");
-                _asyncResults.Store(key, resultProp?.GetValue(t));
+                _asyncResults.Store(key, new ReportedResult(resultProp?.GetValue(t), launchReport));
 
                 Rhino.RhinoApp.InvokeOnUiThread(new Action(() => ExpireSolution(true)));
             }, TaskContinuationOptions.ExecuteSynchronously);
@@ -556,6 +568,17 @@ namespace Betta.Components
         /// toggles Run and gets the previous image back.
         /// </summary>
         private void EvictAsyncResults(IEnumerable<string> keys) => _asyncResults.Evict(keys);
+
+        /// <summary>An async result together with the report its method wrote to while running.</summary>
+        private sealed record ReportedResult(object Value, BettaReport Report);
+
+        /// <summary>Posts a method's <see cref="Betta.Interfaces.IBettaReport"/> messages. UI thread (solve) only.</summary>
+        private void PostReport(BettaReport report)
+        {
+            if (report == null) return;
+            foreach (var (level, text) in report.Messages)
+                AddRuntimeMessage(level == BettaReportLevel.Warning ? GH_RuntimeMessageLevel.Warning : GH_RuntimeMessageLevel.Remark, text);
+        }
 
         /// <summary>
         /// Normalize Task&lt;T&gt; and ValueTask&lt;T&gt; into a plain Task the
@@ -584,7 +607,7 @@ namespace Betta.Components
         /// the wired inputs change the old subscription is disposed and a new one opened.
         /// Unlike the async path there is NO input-hash cache — every emission re-fires.
         /// </summary>
-        private bool TryGetStreamResult(object[] args, out object result)
+        private bool TryGetStreamResult(object[] args, BettaReport report, out object result)
         {
             var key = AsyncResultCache.KeyFor(args);
 
@@ -596,14 +619,19 @@ namespace Betta.Components
             }
 
             if (needSubscribe)
-                SubscribeStream(args, key);
+                SubscribeStream(args, key, report);
 
+            BettaReport streamReport;
+            bool hasValue;
             lock (_streamLock)
             {
-                if (!_streamHasValue) { result = null; return false; }
-                result = _streamLatest;
-                return true;
+                streamReport = _streamReport;
+                hasValue = _streamHasValue;
+                result = hasValue ? _streamLatest : null;
             }
+            // Everything the subscription reported since it opened shows on every re-solve.
+            PostReport(streamReport);
+            return hasValue;
         }
 
         /// <summary>
@@ -613,13 +641,14 @@ namespace Betta.Components
         /// closure holds a reference to this component, so it is disposed in
         /// RemovedFromDocument (and here, on re-subscribe) to avoid a leak.
         /// </summary>
-        private void SubscribeStream(object[] args, string key)
+        private void SubscribeStream(object[] args, string key, BettaReport report)
         {
             DisposeStream();
 
             lock (_streamLock)
             {
                 _streamKey = key;
+                _streamReport = report;
                 _streamLatest = null;
                 _streamHasValue = false;
             }
@@ -683,6 +712,7 @@ namespace Betta.Components
                 sub = _streamSubscription;
                 _streamSubscription = null;
                 _streamKey = null;
+                _streamReport = null;
                 _streamLatest = null;
                 _streamHasValue = false;
             }

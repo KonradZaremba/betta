@@ -37,6 +37,13 @@ namespace TestBetta
         }
 
         [Fact]
+        public void Key_IgnoresFreshReportEachSolve()
+        {
+            Assert.Equal(AsyncResultCache.KeyFor(new object[] { 3.0, new BettaReport() }),
+                         AsyncResultCache.KeyFor(new object[] { 3.0, new BettaReport() }));
+        }
+
+        [Fact]
         public void Key_ChangesWhenARealInputChanges()
         {
             Assert.NotEqual(AsyncResultCache.KeyFor(new object[] { 3.0 }),

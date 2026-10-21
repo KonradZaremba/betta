@@ -4,14 +4,13 @@
   plain GH_Component project. See README.md. Real runs bill your Claude usage; use -DryRun first.
 #>
 param(
-    [string[]]$Tasks = @('t1-remap', 't2-divide', 't3-async'),   # full names or prefixes (t1, t2, ...)
-    [string[]]$Arms = @('betta', 'vanilla'),
+    [string[]]$Tasks = @('t1-remap', 't2-divide', 't3-async', 't4-multi', 't5-refactor'),   # full names or prefixes (t1, t2, ...)
+    [string[]]$Arms = @('betta', 'betta-noskill', 'vanilla'),   # betta = scaffold + skill; betta-noskill = scaffold only; vanilla = plain GH_Component
     [int]$Runs = 3,
     [string]$Model = 'sonnet',
     [int]$MaxTurns = 40,
     [double]$MaxBudgetUsd = 3,
     [string]$OutDir,
-    [ValidateSet('skill', 'none')][string]$SkillMode = 'skill',
     [string[]]$ExtraArgs = @(),
     [int]$TimeoutMinutes = 45,
     [switch]$DryRun
@@ -38,7 +37,16 @@ $wsRoot = Join-Path 'C:\tmp\betta-bench' $runId
 $mcpConfig = Join-Path $OutDir 'mcp-empty.json'
 [IO.File]::WriteAllText($mcpConfig, '{"mcpServers":{}}', (New-Object Text.UTF8Encoding($false)))
 
-$skillSrc = Join-Path $repoRoot '.claude\skills\betta-plugin\SKILL.md'
+$skillSrc = Join-Path $repoRoot '.claude\skills\betta-plugin'
+$knownArms = @('betta', 'betta-noskill', 'vanilla')
+foreach ($a in $Arms) { if ($knownArms -notcontains $a) { throw "Unknown arm '$a'. Known arms: $($knownArms -join ', ')" } }
+function Get-ScaffoldName([string]$arm) { if ($arm -eq 'vanilla') { return 'vanilla' } else { return 'betta' } }
+# Read-only: ties the run to the skill version it used.
+$gitCommit = $null
+try {
+    $g = Invoke-Native -FilePath 'git' -WorkingDirectory $repoRoot -ArgumentList @('rev-parse', '--short', 'HEAD')
+    if ($g.ExitCode -eq 0) { $gitCommit = $g.Stdout.Trim() }
+} catch { }
 $csvPath = Join-Path $OutDir 'runs.csv'
 # Same tools for both arms. The build is allowed through either shell tool, plus read-only commands an
 # agent pipes build output into, so a denied `dotnet build | tail` doesn't burn turns unevenly.
@@ -49,7 +57,7 @@ $isolationFlags = '--setting-sources project,local --strict-mcp-config --mcp-con
 
 $meta = [ordered]@{
     date = (Get-Date).ToString('yyyy-MM-dd HH:mm'); model = $Model; runs = $Runs; max_turns = $MaxTurns
-    max_budget_usd = $MaxBudgetUsd; skill_mode = $SkillMode; dry_run = [bool]$DryRun
+    max_budget_usd = $MaxBudgetUsd; arms = $Arms; git_commit = $gitCommit; dry_run = [bool]$DryRun
     extra_args = $ExtraArgs; isolation_flags = $isolationFlags
 }
 [IO.File]::WriteAllText((Join-Path $OutDir 'meta.json'), ($meta | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
@@ -127,31 +135,50 @@ function Show-Args([string[]]$list) {
 
 $taskFiles = @()
 foreach ($t in $Tasks) {
-    $m = Get-ChildItem (Join-Path $PSScriptRoot 'tasks') -Filter "$t*.md"
+    $m = Get-ChildItem (Join-Path $PSScriptRoot 'tasks') -Filter "$t*.md" -File
     if (-not $m) { throw "No task matches '$t'" }
     $taskFiles += $m
+}
+# Base dir per (task, scaffold) = bare scaffold + the task's seed files. Measurement diffs against it, so
+# an untouched seeded workspace reports 0 added lines.
+$baseDirs = @{}
+function Get-BaseDir([string]$task, [string]$scaffold) {
+    $key = "$task|$scaffold"
+    if ($baseDirs.ContainsKey($key)) { return $baseDirs[$key] }
+    $dir = Join-Path $wsRoot "_base\$task-$scaffold"
+    if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+    Copy-Clean (Join-Path $PSScriptRoot "scaffolds\$scaffold") $dir
+    $seed = Join-Path $PSScriptRoot "tasks\$task.seed\$scaffold"
+    if (Test-Path $seed) { Copy-Item -Path (Join-Path $seed '*') -Destination $dir -Recurse -Force }
+    $baseDirs[$key] = $dir
+    return $dir
 }
 
 foreach ($tf in $taskFiles) {
     $task = [IO.Path]::GetFileNameWithoutExtension($tf.Name)
     $prompt = [IO.File]::ReadAllText($tf.FullName).Trim()
     foreach ($arm in $Arms) {
-        $withSkill = ($arm -eq 'betta' -and $SkillMode -eq 'skill')
-        $armLabel = $arm
-        if ($arm -eq 'betta' -and $SkillMode -eq 'none') { $armLabel = 'betta-noskill' }
+        $scaffold = Get-ScaffoldName $arm
+        $withSkill = ($arm -eq 'betta')
+        $baseDir = Get-BaseDir $task $scaffold
+        $seed = Join-Path $PSScriptRoot "tasks\$task.seed\$scaffold"
         for ($n = 1; $n -le $Runs; $n++) {
-            $name = "$task-$armLabel-$n"
+            $name = "$task-$arm-$n"
             $ws = Join-Path $wsRoot $name
             if (Test-Path $ws) { Remove-Item -Recurse -Force $ws }
             New-Item -ItemType Directory -Force -Path $ws | Out-Null
-            Copy-Item -Path (Join-Path $PSScriptRoot "scaffolds\$arm\*") -Destination $ws -Recurse -Force
+            Copy-Item -Path (Join-Path $PSScriptRoot "scaffolds\$scaffold\*") -Destination $ws -Recurse -Force
+            if (Test-Path $seed) { Copy-Item -Path (Join-Path $seed '*') -Destination $ws -Recurse -Force }
 
             if ($withSkill) {
                 $skillDir = Join-Path $ws '.claude\skills\betta-plugin'
                 New-Item -ItemType Directory -Force -Path $skillDir | Out-Null
+                Copy-Item -Path (Join-Path $skillSrc '*') -Destination $skillDir -Recurse -Force
                 # 0.8.0 is not on nuget.org yet; an agent copying the skill's snippets would break restore.
-                $txt = [IO.File]::ReadAllText($skillSrc).Replace('Version="0.8.0"', 'Version="0.7.2.1"')
-                [IO.File]::WriteAllText((Join-Path $skillDir 'SKILL.md'), $txt, (New-Object Text.UTF8Encoding($false)))
+                foreach ($md in (Get-ChildItem $skillDir -Recurse -Filter *.md -File)) {
+                    $txt = [IO.File]::ReadAllText($md.FullName).Replace('Version="0.8.0"', 'Version="0.7.2.1"')
+                    [IO.File]::WriteAllText($md.FullName, $txt, (New-Object Text.UTF8Encoding($false)))
+                }
             }
 
             $claudeArgs = @('-p', $prompt, '--output-format', 'json', '--model', $Model,
@@ -181,10 +208,10 @@ foreach ($tf in $taskFiles) {
 
             $r = Read-ClaudeResult $rawPath
             $build = Test-WorkspaceBuild $ws
-            $m = Measure-AddedCode -Scaffold (Join-Path $PSScriptRoot "scaffolds\$arm") -Workspace $ws
+            $m = Measure-AddedCode -Scaffold $baseDir -Workspace $ws
 
             $row = [pscustomobject][ordered]@{
-                task = $task; arm = $armLabel; run = $n; exit_code = $exit
+                task = $task; arm = $arm; run = $n; exit_code = $exit
                 subtype = $r.subtype; is_error = $r.is_error; num_turns = $r.num_turns; duration_ms = $r.duration_ms
                 total_cost_usd = $r.total_cost_usd; models = $r.models
                 input_tokens = $r.input_tokens; cache_creation_input_tokens = $r.cache_creation_input_tokens

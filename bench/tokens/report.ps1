@@ -56,7 +56,10 @@ Add ('- Date: {0}' -f $(if ($meta) { $meta.date } else { (Get-Date).ToString('yy
 Add ('- Model requested: {0} (models seen in results: {1})' -f $(if ($meta) { $meta.model } else { 'n/a' }), $models)
 Add ('- Runs per task x arm: {0}' -f $runsPer)
 if ($meta) {
-    Add ('- Max turns: {0}; max budget per run: ${1}; skill mode (betta arm): {2}' -f $meta.max_turns, $meta.max_budget_usd, $meta.skill_mode)
+    Add ('- Max turns: {0}; max budget per run: ${1}' -f $meta.max_turns, $meta.max_budget_usd)
+    if ($meta.PSObject.Properties['arms']) { Add ('- Arms: {0}' -f (@($meta.arms) -join ', ')) }
+    if ($meta.PSObject.Properties['skill_mode']) { Add ('- Skill mode (betta arm): {0}' -f $meta.skill_mode) }
+    if ($meta.PSObject.Properties['git_commit'] -and $meta.git_commit) { Add ('- Repo commit (skill version): {0}' -f $meta.git_commit) }
     Add ('- Isolation flags: `{0}`' -f $meta.isolation_flags)
     if ($meta.extra_args) { Add ('- Extra args: `{0}`' -f ($meta.extra_args -join ' ')) }
     if ($meta.dry_run) { Add '- **DRY RUN: no agent was run; token columns are empty.**' }
@@ -134,7 +137,26 @@ foreach ($t in ($tasks + 'ALL')) {
 }
 Add ''
 
-# Reference implementations (free code-size measurement)
+# Skill effect: betta vs betta-noskill, per task and overall
+if ($arms -contains 'betta' -and $arms -contains 'betta-noskill') {
+    Add '## Skill effect: betta vs betta-noskill (median ratio; below 1.00x means the skill helps)'
+    Add ''
+    Add '| Task | Comparison | total_tokens | output_tokens | cost USD | turns | added est. tokens |'
+    Add '|---|---|---|---|---|---|---|'
+    foreach ($t in ($tasks + 'ALL')) {
+        if ($t -ne 'ALL' -and (-not $cell.ContainsKey("$t|betta") -or -not $cell.ContainsKey("$t|betta-noskill"))) { continue }
+        $vals = @()
+        foreach ($col in 'total_tokens', 'output_tokens', 'total_cost_usd', 'num_turns', 'added_est_tokens') {
+            if ($t -eq 'ALL') { $x = $armTotals['betta'][$col]; $y = $armTotals['betta-noskill'][$col] }
+            else { $x = Get-Med $cell["$t|betta"] $col; $y = Get-Med $cell["$t|betta-noskill"] $col }
+            $vals += (Format-Ratio $x $y)
+        }
+        Add ('| {0} | betta vs betta-noskill | {1} |' -f $t, ($vals -join ' | '))
+    }
+    Add ''
+}
+
+# Reference implementations (free code-size measurement, t1-t3 only)
 Add '## Reference implementation size (hand-written, minimal, idiomatic)'
 Add ''
 Add 'chars include one newline per line; tokens are est. = ceil(chars / 4).'

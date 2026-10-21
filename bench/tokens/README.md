@@ -1,13 +1,13 @@
 # Token benchmark: Betta vs plain GH_Component
 
 Measures what a headless Claude Code agent spends (tokens, dollars, turns, wall time) to add the same
-Grasshopper component to (a) a Betta plugin project and (b) a hand-written `GH_Component` plugin project,
+Grasshopper component(s) to (a) a Betta plugin project, with and without the betta-plugin skill, and (b) a hand-written `GH_Component` plugin project,
 plus how much code the result contains.
 
 Latest results and what they mean: [RESULTS.md](RESULTS.md).
 
 **Real runs bill your Claude usage.** Each run is capped by `-MaxBudgetUsd` (default 3) and `-MaxTurns`
-(default 40), but 3 tasks x 2 arms x 3 runs is 18 sessions. Dry-run first.
+(default 40), but a full run is 5 tasks x 3 arms x 3 runs = 45 sessions, all billed to your Claude usage. Dry-run first.
 
 ## What is measured
 
@@ -15,13 +15,33 @@ Latest results and what they mean: [RESULTS.md](RESULTS.md).
   input, cache creation, cache read, output; top-level `usage` if `modelUsage` is absent), and
   `final_context_tokens` (context size of the last API call, from the last `usage.iterations` element).
 - Independently of the agent: `dotnet build -c Release` in the workspace (pass/fail, error count).
-- Code the agent added: `git diff --no-index -U0` of scaffold vs workspace (ignoring `bin/`, `obj/`, `.claude/`):
+- Code the agent added: `git diff --no-index -U0` of scaffold+seed vs workspace (ignoring `bin/`, `obj/`, `.claude/`):
   files changed, added lines, added chars, `added_est_tokens` = ceil(chars / 4). **est.** only; not a tokenizer.
 - Reference implementations (`reference/`): the minimal idiomatic code for each task in each style, measured
   the same way. This is the model-free code-size comparison. Betta references use the terse class-direct style;
   the scaffold itself uses the interface style, so agents may legitimately write more than the reference.
 
-Tasks (`tasks/`): `t1-remap`, `t2-divide`, `t3-async`. Prompt text is identical for both arms.
+Tasks (`tasks/`; prompt text is identical for every arm):
+
+| Task | What |
+|---|---|
+| `t1-remap` | add "Remap" (Math) |
+| `t2-divide` | add "Divide Curve Stats" (Geometry) |
+| `t3-async` | add "Async Stats" (Data, async) |
+| `t4-multi` | add five components in one go: Remap, Clamp, Lerp, Divide Curve Stats, Async Stats |
+| `t5-refactor` | change the existing "Remap": rename input, add a boolean input and a second output, move subcategory |
+
+Arms (`-Arms`, default `betta betta-noskill vanilla`; an unknown arm throws):
+
+- `betta`: `scaffolds/betta` plus the whole `.claude/skills/betta-plugin/` folder (SKILL.md and `references/`).
+- `betta-noskill`: `scaffolds/betta` with no `.claude` folder.
+- `vanilla`: `scaffolds/vanilla` (plain `GH_Component`).
+
+Seeds: a task may have `tasks/<task>.seed/<scaffold>/` (scaffold is `betta` or `vanilla`; `betta-noskill` uses
+`betta`). Its files are copied over the scaffold before the agent runs. `t5-refactor` seeds the existing `Remap.cs`
+(a copy of `reference/<arm>/Remap.cs`). A base dir (scaffold + seed) is built once per task and scaffold under
+`C:\tmp\betta-bench\<runId>\_base\`; measurement diffs against it, so an untouched seeded workspace shows 0 added
+lines. For `t5` the added-code numbers are therefore the size of the change, not of a whole component.
 
 ## Layout
 
@@ -37,12 +57,12 @@ powershell -NoProfile -File bench/tokens/run.ps1 -DryRun -Runs 1
 
 # 2. real run (bills your usage)
 powershell -NoProfile -File bench/tokens/run.ps1 -Runs 3
-powershell -NoProfile -File bench/tokens/run.ps1 -Tasks t1 -Arms betta -Runs 1 -SkillMode none   # betta without the skill
+powershell -NoProfile -File bench/tokens/run.ps1 -Tasks t1 -Arms betta,betta-noskill -Runs 1   # subset of tasks and arms
 ```
 
 Output goes to `bench/tokens/results/<yyyy-MM-dd-HHmm>/` (`runs.csv`, `report.md`, `meta.json`, `raw/*.json`,
-`raw/*.err.txt`). Regenerate the report with `report.ps1 -OutDir <folder>`. Without the skill the Betta arm is
-labelled `betta-noskill` in the csv. Results folders are committed later; workspaces never are.
+`raw/*.err.txt`). Regenerate the report with `report.ps1 -OutDir <folder>`. `meta.json` records the arms and the repo
+commit hash (the skill version used). Results folders are committed later; workspaces never are.
 
 ## Isolation and its limits
 
@@ -51,11 +71,11 @@ labelled `betta-noskill` in the csv. Results folders are committed later; worksp
 - `--setting-sources project,local` (no user settings, skills or hooks), `--strict-mcp-config` with an empty
   config (no MCP servers), `--no-session-persistence`, and a tool allow-list (`Read Edit Write Glob Grep` and
   `Bash(dotnet build:*)`). stdin is closed on each call because `claude -p` otherwise waits 3 s for it.
-- The Betta arm gets a copy of `.claude/skills/betta-plugin/SKILL.md` with `Version="0.8.0"` rewritten to
-  `0.7.2.1` (0.8.0 is not on nuget.org yet). The vanilla arm gets no skill.
+- The `betta` arm gets a recursive copy of `.claude/skills/betta-plugin/` with, in every `.md`, `Version="0.8.0"` rewritten to
+  `0.7.2.1` (0.8.0 is not on nuget.org yet). The other arms get no skill.
 - Known limits: model nondeterminism (hence several runs and medians); prompt caching makes `cache_read` volume
   and cost depend on timing; both arms share the model's prior knowledge of the Grasshopper SDK, but only Betta
-  is a niche library, so the skill matters (compare `-SkillMode none`); NuGet restore of the first run may be
+  is a niche library, so the skill matters (compare `betta` with `betta-noskill`); NuGet restore of the first run may be
   slower; the allow-list stops the agent from running anything but `dotnet build`, so it cannot test in Rhino.
 - `Process`-based launching builds the argument string with standard Windows quoting, so the prompt reaches
   `claude` as a single argument.

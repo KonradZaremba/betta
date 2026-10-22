@@ -106,9 +106,9 @@ namespace Betta.Services
                         Description = attr.Description ?? name,
                         Category = attr.Category ?? defaultCategory,
                         SubCategory = attr.SubCategory ?? defaultSubCategory,
-                        Guid = string.IsNullOrEmpty(attr.Guid)
-                            ? ComponentDescriptor.GenerateGuidFromMethod(serviceType, method)
-                            : Guid.Parse(attr.Guid),
+                        Guid = ComponentDescriptor.ResolveGuid(serviceType, method, attr.Guid, out var legacyGuid),
+                        LegacyGuid = legacyGuid,
+                        FormerGuids = ComponentDescriptor.FormerGuidsFromAttributes(serviceType, method),
                         Enabled = attr.Enabled,
                         IconResource = attr.IconResource,
                         HasPreview = ReturnSurfacesInterface(method, PreviewInterfaceFullName),
@@ -372,6 +372,17 @@ namespace Betta.Services
                 Instances.ComponentServer.AddProxy(new BettaComponentProxy(descriptor));
                 Logger.LogInformation("  + {Category}/{SubCategory}/{Name} ({Guid})",
                     descriptor.Category, descriptor.SubCategory, descriptor.Name, descriptor.Guid);
+
+                // Files saved with the pre-0.8 GUID scheme or under a former method/type name
+                // open through a hidden alias; the instance it creates carries the current
+                // GUID, so the file migrates on next save.
+                foreach (var alias in descriptor.AliasGuids)
+                {
+                    // A current component's own GUID wins over another's former one.
+                    if (_descriptors.Any(d => d.Guid == alias) || !_published.Add(alias)) continue;
+                    Instances.ComponentServer.AddProxy(new BettaComponentProxy(descriptor, alias));
+                    Logger.LogInformation("    alias {Alias} -> {Guid}", alias, descriptor.Guid);
+                }
             }
             catch (Exception ex)
             {
@@ -410,10 +421,12 @@ namespace Betta.Services
             {
                 _descriptors.Remove(d);
                 _published.Remove(d.Guid);
+                foreach (var alias in d.AliasGuids) _published.Remove(alias);
 
                 try
                 {
                     proxyCatalog?.Remove(d.Guid);
+                    foreach (var alias in d.AliasGuids) proxyCatalog?.Remove(alias);
                 }
                 catch (Exception ex)
                 {

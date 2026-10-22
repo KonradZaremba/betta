@@ -118,17 +118,18 @@ namespace TestBetta
         [Trait("Requires", "Rhino")]
         public void ConvertToDescriptorsAlwaysUsesReflectionGuid()
         {
-            // The fast path materialises descriptors whose Guid is recomputed
-            // from the resolved MethodInfo, so save/reload compatibility is
-            // identical to the legacy reflection scan even when the generator's
-            // compile-time GUID drifts (closed generics over versioned ref asms).
+            // The fast path resolves each descriptor's Guid from the MethodInfo
+            // exactly as the reflection scan does (a pinned Guid wins, otherwise
+            // the derived one), never trusting the blueprint literal that older
+            // generators computed with compile-time assembly versions.
             var asm = LoadOpaqueDemo();
             var descriptors = ComponentDescriptorBlueprint.TryLoadFromAssembly(asm);
             Assert.NotNull(descriptors);
 
             foreach (var d in descriptors)
             {
-                var expected = ComponentDescriptor.GenerateGuidFromMethod(d.ServiceType, d.Method);
+                var pinned = d.Method.GetCustomAttribute<Betta.Attributes.GrasshopperMethodAttribute>()?.Guid;
+                var expected = ComponentDescriptor.ResolveGuid(d.ServiceType, d.Method, pinned, out _);
                 Assert.Equal(expected, d.Guid);
             }
         }

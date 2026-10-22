@@ -978,6 +978,13 @@ namespace Betta.Components
             return base.Write(writer);
         }
 
+        private Type MenuStateEnumType(string parameterName)
+        {
+            var type = (_descriptor ?? Pending)?.Method.GetParameters()
+                .FirstOrDefault(p => p.Name == parameterName)?.ParameterType;
+            return type != null && type.IsEnum ? type : null;
+        }
+
         public override bool Read(GH_IO.Serialization.GH_IReader reader)
         {
             _menuState.Clear();
@@ -994,8 +1001,11 @@ namespace Betta.Components
                         switch (kind)
                         {
                             case "enum":
-                                var tn = reader.GetString($"betta_ms_etype_{idx}");
-                                var et = Type.GetType(tn, throwOnError: false);
+                                // The enum type comes from the method's own parameter, not the saved
+                                // betta_ms_etype name: the plugin lives in its own load context, so
+                                // Type.GetType misses it, and the sibling resolver would load a second
+                                // copy whose enum doesn't match the parameter.
+                                var et = MenuStateEnumType(key);
                                 if (et != null) _menuState[key] = Enum.ToObject(et, reader.GetInt64($"betta_ms_val_{idx}"));
                                 break;
                             case "bool":   _menuState[key] = reader.GetBoolean($"betta_ms_val_{idx}"); break;
@@ -1007,7 +1017,31 @@ namespace Betta.Components
                     catch { /* skip a single malformed entry rather than fail the whole read */ }
                 }
             }
-            return base.Read(reader);
+
+            // A file saved before the method gained inputs or outputs has no chunk for them,
+            // and GH's param reader logs each one as "chunk is missing. Archive is corrupt."
+            // Set them aside while the saved params are read (by position), then put them
+            // back as they were built, defaults included.
+            var newInputs = DetachUnsaved(reader, "param_input", Params.Input);
+            var newOutputs = DetachUnsaved(reader, "param_output", Params.Output);
+            try
+            {
+                return base.Read(reader);
+            }
+            finally
+            {
+                Params.Input.AddRange(newInputs);
+                Params.Output.AddRange(newOutputs);
+            }
+        }
+
+        private static List<IGH_Param> DetachUnsaved(GH_IO.Serialization.GH_IReader reader, string chunkName, List<IGH_Param> parameters)
+        {
+            var saved = 0;
+            while (saved < parameters.Count && reader.ChunkExists(chunkName, saved)) saved++;
+            var unsaved = parameters.GetRange(saved, parameters.Count - saved);
+            parameters.RemoveRange(saved, unsaved.Count);
+            return unsaved;
         }
     }
 }

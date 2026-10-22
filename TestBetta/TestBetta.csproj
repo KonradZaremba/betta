@@ -36,6 +36,14 @@
     <!-- The Betta.Files pilot colony: referenced by TestFileToolkit for headless
          discovery + watcher/read/write coverage. -->
     <ProjectReference Include="..\samples\Betta.Files\Betta.Files.csproj" />
+    <!-- TestGeneratorStableGuids runs the source generator through Roslyn on a snippet
+         and checks its compile-time GUIDs against the runtime's, without Rhino. -->
+    <ProjectReference Include="..\Betta.Generators\Betta.Generators.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Same Roslyn version Betta.Generators builds against. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
   </ItemGroup>
   
   <ItemGroup>

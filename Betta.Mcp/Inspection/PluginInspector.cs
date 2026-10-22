@@ -226,9 +226,21 @@ public sealed class PluginInspector : IDisposable
                     // ComponentRegistry uses [GrasshopperMethod(Guid = ...)] when set, so a pinned GUID wins here too.
                     d.GuidPinned = System.Guid.TryParse(NamedString(named, "Guid"), out var pinned);
 
+                    var overloaded = t.GetMethods().Count(o => o.Name == m.Name && TryGetMethodAttribute(o, out _)) > 1;
                     try
                     {
-                        d.Guid = d.GuidPinned ? pinned.ToString() : ComputeDeterministicGuid(t, m).ToString();
+                        if (d.GuidPinned)
+                        {
+                            d.Guid = pinned.ToString();
+                        }
+                        else
+                        {
+                            d.Guid = (overloaded ? SignatureGuid(t, m, StableTypeName) : Md5Guid($"{StableTypeName(t)}|{m.Name}")).ToString();
+                            var legacy = SignatureGuid(t, m, x => x.FullName).ToString();
+                            if (legacy != d.Guid) d.LegacyGuid = legacy;
+                        }
+                        d.FormerGuids = FormerGuids(t, m, NamedStrings(named, "FormerNames"), ReadCollectionFormerNames(t), overloaded)
+                            .Select(g => g.ToString()).Where(g => g != d.Guid).ToList();
                         d.ReturnType = m.ReturnType?.FullName ?? m.ReturnType?.Name ?? "void";
                         d.Parameters = m.GetParameters().Select(p => new DescribedParameter
                         {
@@ -239,8 +251,6 @@ public sealed class PluginInspector : IDisposable
                             Type = p.ParameterType.FullName ?? p.ParameterType.Name,
                             Optional = NamedBool(AttributeReader.NamedArgumentsOfAttr(p, ParameterAttribute), "Optional") ?? false,
                         }).ToList();
-                        if (!d.GuidPinned)
-                            d.VersionedAssemblies = VersionedAssembliesOf(m);
                     }
                     catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or TypeLoadException)
                     {
@@ -250,8 +260,7 @@ public sealed class PluginInspector : IDisposable
                         return d;
                     }
 
-                    d.GuidVersionDependent = d.VersionedAssemblies.Count > 0;
-                    d.Notes.Add(GuidNote(d));
+                    d.Notes.AddRange(GuidNotes(d, overloaded));
                     return d;
                 }
             }
@@ -284,72 +293,65 @@ public sealed class PluginInspector : IDisposable
 
     // --- helpers ---
 
-    private static string GuidNote(DescribedComponent d)
+    private static IEnumerable<string> GuidNotes(DescribedComponent d, bool overloaded)
     {
-        var pin = $"[GrasshopperMethod(..., Guid = \"{d.Guid}\")]";
         if (d.GuidPinned)
-            return "Pinned with [GrasshopperMethod(Guid = ...)]: it never changes, whatever happens to the signature or to assembly versions.";
-        if (d.GuidVersionDependent)
-            return "Derived from a signature with generic types, whose names include these assembly versions: " +
-                   string.Join(", ", d.VersionedAssemblies) + ". The GUID changes whenever one of them does (a new build of the plugin, " +
-                   $"a Rhino update, a .NET switch), and saved .gh files then lose the component. Pin it now with {pin}. " +
-                   "If saved files were made with an earlier build, pin the GUID they use instead: loggedGuids lists what Betta has " +
-                   "published, oldest first. This value is computed with this server's .NET 8 and the installed RhinoCommon; " +
-                   "if it differs from the last loggedGuids entry, trust the log.";
-        return "Derived from the signature: renaming the method or its type, or renaming, reordering or retyping a parameter " +
-               $"changes it and breaks saved .gh files. Pin it with {pin} before such a change.";
-    }
-
-    /// <summary>
-    /// Assemblies whose versions end up in the GUID hash: <c>Type.FullName</c> of a generic type
-    /// assembly-qualifies its type arguments (<c>List`1[[Rhino.Geometry.Curve, RhinoCommon, Version=8.26…]]</c>).
-    /// </summary>
-    private static List<string> VersionedAssembliesOf(MethodInfo m)
-    {
-        var found = new SortedSet<string>(StringComparer.Ordinal);
-        void Walk(Type type, bool isTypeArgument)
         {
-            if (type.HasElementType) { Walk(type.GetElementType()!, isTypeArgument); return; }
-            if (isTypeArgument)
-            {
-                var name = type.Assembly.GetName();
-                found.Add($"{name.Name} {name.Version}");
-            }
-            if (type.IsGenericType)
-                foreach (var arg in type.GetGenericArguments()) Walk(arg, true);
+            yield return "Pinned with [GrasshopperMethod(Guid = ...)], for example kept from a ported GH_Component: it never changes.";
+            yield break;
         }
-        foreach (var p in m.GetParameters()) Walk(p.ParameterType, false);
-        Walk(m.ReturnType, false);
-        return found.ToList();
+        var pin = $"[GrasshopperMethod(..., Guid = \"{d.Guid}\")]";
+        yield return overloaded
+            ? "This method name is overloaded, so the GUID is derived from the type, method, parameters and return type. Any change " +
+              $"to the signature breaks saved .gh files; to make one, pin the current value first: {pin}. Adding the overload also " +
+              "changed the GUID of the method that had the name first; to keep its saved files, list its own name on it: " +
+              $"[GrasshopperMethod(..., FormerNames = new[] {{ \"{d.Method}\" }})]. Distinct method names avoid all of this."
+            : "Derived from the type and method name only: parameters and outputs can change without breaking saved .gh files " +
+              "(add new inputs and outputs after the existing ones, since files reconnect wires by position). Renaming the method or its type, " +
+              "or moving the method to another type, changes it; when you do, list the old name so saved files still open: " +
+              $"[GrasshopperMethod(..., FormerNames = new[] {{ \"{d.Method}\" }})] (or \"{d.ServiceType}.{d.Method}\" when moving it to another type, " +
+              $"or [GrasshopperCollection(FormerNames = new[] {{ \"{d.ServiceType}\" }})] when renaming the type). Pinning works too: {pin}.";
+        if (d.FormerGuids.Count > 0)
+            yield return $"Also answers to {string.Join(", ", d.FormerGuids)} from FormerNames: files saved under those names open and take the current GUID when saved again.";
+        if (d.LegacyGuid != null)
+            yield return $"Betta 0.7 and earlier published this component as {d.LegacyGuid}: that scheme hashed the whole signature, and " +
+                         "for generic types their assembly versions (computed here with this server's .NET 8 and the installed RhinoCommon). " +
+                         "Betta 0.8 registers it as a hidden alias, so 0.7 files open and take the new GUID on the next save; for generic " +
+                         "signatures only when saved with the same plugin, Rhino and .NET versions. loggedGuids shows what Rhino actually published.";
     }
 
     /// <summary>
     /// The GUIDs Betta.log recorded for a component (ComponentRegistry logs "+ Category/SubCategory/Name (guid)"
-    /// on every registration), distinct, ordered by last appearance. Shared read: Rhino may be writing the log.
+    /// on every registration), distinct, ordered by last appearance. Reads Betta.log.old first: Betta rolls the
+    /// log at 10 MB, and the GUIDs an older release published are the ones worth pinning. Shared read: Rhino may
+    /// be writing the log.
     /// </summary>
     private List<string> ReadLoggedGuids(string category, string subCategory, string name)
     {
         var result = new List<string>();
-        if (!File.Exists(_logFile)) return result;
         var marker = $" + {category}/{subCategory}/{name} (";
-        try
+        foreach (var path in new[] { _logFile + ".old", _logFile })
         {
-            using var stream = new FileStream(_logFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            using var reader = new StreamReader(stream);
-            string? line;
-            while ((line = reader.ReadLine()) != null)
+            if (!File.Exists(path)) continue;
+            try
             {
-                var at = line.IndexOf(marker, StringComparison.Ordinal);
-                if (at < 0) continue;
-                var start = at + marker.Length;
-                var end = line.IndexOf(')', start);
-                if (end < 0 || !System.Guid.TryParse(line.AsSpan(start, end - start), out var g)) continue;
-                var s = g.ToString();
-                result.Remove(s);
-                result.Add(s);
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream);
+                string? line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    var at = line.IndexOf(marker, StringComparison.Ordinal);
+                    if (at < 0) continue;
+                    var start = at + marker.Length;
+                    var end = line.IndexOf(')', start);
+                    if (end < 0 || !System.Guid.TryParse(line.AsSpan(start, end - start), out var g)) continue;
+                    var s = g.ToString();
+                    result.Remove(s);
+                    result.Add(s);
+                }
             }
+            catch (IOException) { }
         }
-        catch (IOException) { }
         return result;
     }
 
@@ -389,16 +391,71 @@ public sealed class PluginInspector : IDisposable
     }
 
     /// <summary>
-    /// Mirrors <c>ComponentDescriptor.GenerateGuidFromMethod</c> verbatim so
-    /// the GUID the MCP server reports matches what Betta itself publishes.
+    /// Mirrors <c>ComponentDescriptor</c>'s signature hash: overloads use it with
+    /// <see cref="StableTypeName"/>, <c>LegacyGuidFromMethod</c> with <c>Type.FullName</c>.
+    /// Every other method hashes <c>Type|Method</c> only, so the GUIDs the MCP server
+    /// reports match what Betta publishes.
     /// </summary>
-    private static Guid ComputeDeterministicGuid(Type serviceType, MethodInfo m)
+    private static Guid SignatureGuid(Type serviceType, MethodInfo m, Func<Type, string?> typeName)
     {
-        var paramSig = string.Join(",", m.GetParameters().Select(p => p.ParameterType.FullName + " " + p.Name));
-        var input = $"{serviceType.FullName}|{m.Name}|{paramSig}|{m.ReturnType.FullName}";
+        var paramSig = string.Join(",", m.GetParameters().Select(p => typeName(p.ParameterType) + " " + p.Name));
+        return Md5Guid($"{serviceType.FullName}|{m.Name}|{paramSig}|{typeName(m.ReturnType)}");
+    }
+
+    /// <summary>
+    /// Mirrors <c>ComponentDescriptor.FormerGuids</c>: <c>Type|Method</c> hashes for the earlier
+    /// method names (or <c>"Namespace.Type.Method"</c> for a moved method) and earlier type names. An overload
+    /// that lists its own name gets back the name-only GUID it had before the overload was added.
+    /// </summary>
+    private static IEnumerable<Guid> FormerGuids(Type serviceType, MethodInfo m, string[] formerMethodNames, string[] formerTypeNames,
+        bool overloaded)
+    {
+        var methodNames = formerMethodNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
+        var types = new[] { StableTypeName(serviceType) }
+            .Concat(formerTypeNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()));
+        var names = new[] { m.Name }.Concat(methodNames.Where(n => !n.Contains('.'))).ToList();
+        var current = $"{StableTypeName(serviceType)}|{m.Name}";
+        var keepCurrent = overloaded && methodNames.Contains(m.Name);
+        return types.SelectMany(t => names.Select(n => $"{t}|{n}"))
+            .Concat(methodNames.Where(n => n.Contains('.')).Select(n => $"{n[..n.LastIndexOf('.')]}|{n[(n.LastIndexOf('.') + 1)..]}"))
+            .Where(i => keepCurrent || i != current).Distinct().Select(Md5Guid);
+    }
+
+    private static string[] ReadCollectionFormerNames(Type t)
+    {
+        var attr = t.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == CollectionAttribute);
+        return attr is null ? Array.Empty<string>() : NamedStrings(AttributeReader.NamedArguments(attr), "FormerNames");
+    }
+
+    // A string[] named argument arrives as a collection of typed arguments.
+    private static string[] NamedStrings(IReadOnlyDictionary<string, object?> args, string key)
+        => args.TryGetValue(key, out var v) && v is IEnumerable<CustomAttributeTypedArgument> items
+            ? items.Select(i => i.Value as string).Where(s => s is not null).ToArray()!
+            : Array.Empty<string>();
+
+    private static Guid Md5Guid(string input)
+    {
         using var md5 = MD5.Create();
-        var bytes = md5.ComputeHash(Encoding.UTF8.GetBytes(input));
-        return new Guid(bytes);
+        return new Guid(md5.ComputeHash(Encoding.UTF8.GetBytes(input)));
+    }
+
+    /// <summary>
+    /// Mirrors <c>ComponentDescriptor.StableTypeName</c>: <c>Type.FullName</c> without assembly
+    /// qualification (<c>List`1[System.Double]</c>), equal to FullName for non-generic types.
+    /// </summary>
+    internal static string StableTypeName(Type type)
+    {
+        if (type.IsArray)
+        {
+            var rank = type.GetArrayRank();
+            return StableTypeName(type.GetElementType()!) + (rank == 1 ? "[]" : "[" + new string(',', rank - 1) + "]");
+        }
+        if (type.IsByRef) return StableTypeName(type.GetElementType()!) + "&";
+        if (type.IsPointer) return StableTypeName(type.GetElementType()!) + "*";
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+            return type.GetGenericTypeDefinition().FullName + "[" +
+                   string.Join(",", type.GetGenericArguments().Select(StableTypeName)) + "]";
+        return type.FullName ?? type.Name;
     }
 
     private static string? NamedString(IReadOnlyDictionary<string, object?> args, string key)
@@ -440,10 +497,13 @@ public sealed class DescribedComponent
     public string Guid { get; set; } = string.Empty;
     /// <summary>Set with [GrasshopperMethod(Guid = ...)], so it never changes.</summary>
     public bool GuidPinned { get; set; }
-    /// <summary>Derived, and the signature's generic types embed assembly versions in the hash.</summary>
-    public bool GuidVersionDependent { get; set; }
-    /// <summary>"Name Version" of each assembly whose version is in the hash.</summary>
-    public List<string> VersionedAssemblies { get; set; } = new();
+    /// <summary>
+    /// The pre-0.8 GUID (a hash that included assembly versions) when it differs from <see cref="Guid"/>;
+    /// Betta 0.8 registers it as a hidden alias.
+    /// </summary>
+    public string? LegacyGuid { get; set; }
+    /// <summary>GUIDs from the method's and type's FormerNames, each a hidden alias in Betta.</summary>
+    public List<string> FormerGuids { get; set; } = new();
     /// <summary>GUIDs Betta.log recorded for this component, oldest first.</summary>
     public List<string> LoggedGuids { get; set; } = new();
     public List<string> Notes { get; set; } = new();

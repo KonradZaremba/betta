@@ -8,6 +8,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Betta.Attributes;
 
 namespace Betta.Services
 {
@@ -128,17 +129,14 @@ namespace Betta.Services
                 var method = ResolveMethod(svcType, bp.MethodName, bp.ParameterTypeNames);
                 if (method == null) continue;
 
-                // Always recompute the GUID from the resolved MethodInfo. The
-                // blueprint's GUID is a compile-time best-effort: when a
-                // method's signature includes closed generics over a versioned
-                // runtime assembly (e.g. RhinoCommon at the user's installed
-                // version, not the NuGet ref-asm version), Type.FullName at
-                // runtime emits a different assembly identity than the
-                // generator can see at build time. Recomputing here keeps
-                // save/reload compatibility identical to the legacy reflection
-                // path — the blueprint's value is in skipping the attribute
-                // scan and DescriptorPlanning, not in shaving the MD5 hash.
-                var runtimeGuid = ComponentDescriptor.GenerateGuidFromMethod(svcType, method);
+                // Resolve the GUID exactly as the reflection path does: a pinned
+                // [GrasshopperMethod(Guid = ...)] wins (it keeps a ported
+                // GH_Component's saved files working), otherwise the derived
+                // GUID plus its pre-0.8 legacy value. Recomputed from the
+                // MethodInfo rather than trusting the blueprint literal, which
+                // older generators computed with compile-time assembly versions.
+                var pinned = method.GetCustomAttribute<GrasshopperMethodAttribute>()?.Guid;
+                var runtimeGuid = ComponentDescriptor.ResolveGuid(svcType, method, pinned, out var legacyGuid);
 
                 descriptors.Add(new ComponentDescriptor
                 {
@@ -150,6 +148,8 @@ namespace Betta.Services
                     Category = bp.Category,
                     SubCategory = bp.SubCategory,
                     Guid = runtimeGuid,
+                    LegacyGuid = legacyGuid,
+                    FormerGuids = ComponentDescriptor.FormerGuidsFromAttributes(svcType, method),
                     Enabled = bp.Enabled,
                     IconResource = bp.IconResource,
                     HasPreview = bp.HasPreview,
@@ -176,8 +176,9 @@ namespace Betta.Services
                 bool match = true;
                 for (int i = 0; i < ps.Length; i++)
                 {
-                    var pt = ps[i].ParameterType.FullName;
-                    if (pt != paramTypeNames[i])
+                    // Current generators emit version-free names; older ones emitted FullName.
+                    var pt = ps[i].ParameterType;
+                    if (paramTypeNames[i] != ComponentDescriptor.StableTypeName(pt) && paramTypeNames[i] != pt.FullName)
                     {
                         match = false;
                         break;

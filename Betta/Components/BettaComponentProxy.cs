@@ -23,10 +23,18 @@ namespace Betta.Components
     {
         private readonly ComponentDescriptor _descriptor;
         private readonly GH_InstanceDescription _desc;
+        private readonly Guid? _alias;
 
-        public BettaComponentProxy(ComponentDescriptor descriptor)
+        /// <param name="alias">
+        /// Registers the proxy under this GUID instead, hidden from the ribbon: an old GUID
+        /// that saved .gh files may still reference (<see cref="ComponentDescriptor.LegacyGuid"/>).
+        /// The instance it creates still reports the descriptor's own GUID.
+        /// </param>
+        public BettaComponentProxy(ComponentDescriptor descriptor, Guid? alias = null)
         {
             _descriptor = descriptor;
+            _alias = alias;
+            if (alias.HasValue) Exposure = GH_Exposure.hidden;
             _desc = new GH_InstanceDescription(
                 descriptor.Name,
                 descriptor.NickName,
@@ -41,14 +49,14 @@ namespace Betta.Components
         public Bitmap Icon => IconProvider.GetOrCreate(_descriptor);
         public GH_Exposure Exposure { get; set; } = GH_Exposure.primary;
         public GH_ObjectType Kind => GH_ObjectType.CompiledObject;
-        public Guid Guid => _descriptor.Guid;
+        public Guid Guid => _alias ?? _descriptor.Guid;
         public Type Type => typeof(BettaComponent);
         public bool SDKCompliant => true;
-        public bool Obsolete => false;
+        public bool Obsolete => _alias.HasValue;
         public string Location { get; set; }
         public Guid LibraryGuid { get; set; }
 
-        public IGH_ObjectProxy DuplicateProxy() => new BettaComponentProxy(_descriptor);
+        public IGH_ObjectProxy DuplicateProxy() => new BettaComponentProxy(_descriptor, _alias) { Exposure = Exposure };
 
         public IGH_DocumentObject CreateInstance()
         {

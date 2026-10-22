@@ -20,11 +20,20 @@ public class DescribeFixture : IBettaCollection
     [GrasshopperMethod("Pinned Remap", "Has an explicit GUID", Guid = PinnedGuid)]
     public double PinnedRemap(double number, bool clamp) => number;
 
-    [GrasshopperMethod("Derived Remap", "GUID comes from the signature")]
+    [GrasshopperMethod("Derived Remap", "GUID comes from the type and method name")]
     public double DerivedRemap(double value) => value;
 
     [GrasshopperMethod("Batch Remap", "Generic over this plugin's own type")]
     public List<DescribeFixture> BatchRemap(int count) => new();
+
+    [GrasshopperMethod("Scale Number", "Overloaded: GUID includes the signature; was the only Scale", FormerNames = new[] { "Scale" })]
+    public double Scale(double x) => x;
+
+    [GrasshopperMethod("Scale List", "Overloaded: GUID includes the signature")]
+    public List<double> Scale(List<double> xs) => xs;
+
+    [GrasshopperMethod("Map Range", "Renamed from Remap2", FormerNames = new[] { "Remap2" })]
+    public double MapRange(double value) => value;
 }
 
 public class DescribeTests : IDisposable
@@ -42,12 +51,16 @@ public class DescribeTests : IDisposable
         var self = typeof(DescribeTests).Assembly.Location;
         File.Copy(self, Path.Combine(pluginFolder, Path.GetFileName(self)));
 
-        // Betta.log lines as ComponentRegistry writes them; a plugin update re-registered Batch Remap.
+        // Betta.log lines as ComponentRegistry writes them; a plugin update re-registered Batch Remap,
+        // and the log has rolled to Betta.log.old since the older release ran.
         var log = Path.Combine(_root, "Betta.log");
-        File.WriteAllLines(log, new[]
+        File.WriteAllLines(log + ".old", new[]
         {
             $"09:00:00.000 [INFO] ComponentRegistry:   + Betta/General/Batch Remap ({OldGuid})",
             $"09:00:00.001 [INFO] ComponentRegistry:   + Betta/General/Derived Remap ({DescribeFixture.PinnedGuid})",
+        });
+        File.WriteAllLines(log, new[]
+        {
             $"10:00:00.000 [INFO] ComponentRegistry:   + Betta/General/Batch Remap ({NewerGuid})",
         });
         _inspector = new PluginInspector(pluginFolder, log);
@@ -68,40 +81,65 @@ public class DescribeTests : IDisposable
         Assert.Equal(DescribeFixture.PinnedGuid, d!.Guid);
     }
 
+    private static string Md5(string input) => new Guid(MD5.HashData(Encoding.UTF8.GetBytes(input))).ToString();
+
     [Fact]
-    public void Derives_the_guid_from_the_signature_when_none_is_pinned()
+    public void Derives_the_guid_from_the_type_and_method_name_when_none_is_pinned()
     {
         var d = _inspector.Describe("Derived Remap");
 
-        // ComponentDescriptor.GenerateGuidFromMethod: MD5 of "Type|Method|paramType name,...|ReturnType".
-        var input = $"{typeof(DescribeFixture).FullName}|DerivedRemap|System.Double value|System.Double";
-        var expected = new Guid(MD5.HashData(Encoding.UTF8.GetBytes(input))).ToString();
+        // ComponentDescriptor.GenerateGuidFromMethod: MD5 of "Type|Method"; 0.7 hashed the whole signature.
         Assert.NotNull(d);
-        Assert.Equal(expected, d!.Guid);
+        Assert.Equal(Md5($"{typeof(DescribeFixture).FullName}|DerivedRemap"), d!.Guid);
         Assert.False(d.GuidPinned);
-        Assert.False(d.GuidVersionDependent);
+        Assert.Equal(Md5($"{typeof(DescribeFixture).FullName}|DerivedRemap|System.Double value|System.Double"), d.LegacyGuid);
     }
 
     [Fact]
-    public void A_pinned_guid_does_not_depend_on_versions()
+    public void Reports_the_alias_guids_from_former_names()
+    {
+        var d = _inspector.Describe("Map Range")!;
+
+        Assert.Equal(Md5($"{typeof(DescribeFixture).FullName}|MapRange"), d.Guid);
+        Assert.Equal(new[] { Md5($"{typeof(DescribeFixture).FullName}|Remap2") }, d.FormerGuids);
+        Assert.Contains(d.Notes, n => n.Contains(d.FormerGuids[0]));
+    }
+
+    [Fact]
+    public void An_overloaded_method_hashes_its_signature()
+    {
+        var d = _inspector.Describe("Scale Number")!;
+
+        Assert.Equal(Md5($"{typeof(DescribeFixture).FullName}|Scale|System.Double x|System.Double"), d.Guid);
+        Assert.Null(d.LegacyGuid);
+        Assert.Contains(d.Notes, n => n.Contains("overloaded"));
+        // It lists its own name, so it answers to the GUID it had before the overload was added.
+        Assert.Equal(new[] { Md5($"{typeof(DescribeFixture).FullName}|Scale") }, d.FormerGuids);
+        Assert.Empty(_inspector.Describe("Scale List")!.FormerGuids);
+    }
+
+    [Fact]
+    public void A_pinned_guid_has_no_legacy_value()
     {
         var d = _inspector.Describe("Pinned Remap")!;
 
         Assert.True(d.GuidPinned);
-        Assert.False(d.GuidVersionDependent);
-        Assert.Empty(d.VersionedAssemblies);
+        Assert.Null(d.LegacyGuid);
     }
 
     [Fact]
-    public void A_derived_guid_on_a_generic_signature_names_the_versions_it_embeds()
+    public void A_generic_signature_reports_the_versioned_legacy_guid()
     {
         var d = _inspector.Describe("Batch Remap")!;
 
-        // List<DescribeFixture>: the type name carries this plugin's own assembly version.
+        var listType = typeof(List<DescribeFixture>).FullName;
+        Assert.Contains("Version=", listType);
+        Assert.Equal(Md5($"{typeof(DescribeFixture).FullName}|BatchRemap"), d.Guid);
+        Assert.Equal(Md5($"{typeof(DescribeFixture).FullName}|BatchRemap|System.Int32 count|{listType}"), d.LegacyGuid);
         Assert.False(d.GuidPinned);
-        Assert.True(d.GuidVersionDependent);
-        Assert.Contains(d.VersionedAssemblies, a => a.StartsWith("Betta.Mcp.Tests ", StringComparison.Ordinal));
-        Assert.Contains(d.Notes, n => n.Contains("Guid = \"" + d.Guid + "\""));
+        Assert.NotNull(d.LegacyGuid);
+        Assert.NotEqual(d.Guid, d.LegacyGuid);
+        Assert.Contains(d.Notes, n => n.Contains(d.LegacyGuid!));
     }
 
     [Fact]
@@ -114,7 +152,7 @@ public class DescribeTests : IDisposable
     }
 
     [Fact]
-    public void Lists_the_guids_Betta_logged_for_the_component_oldest_first()
+    public void Lists_the_guids_Betta_logged_for_the_component_oldest_first_including_the_rolled_log()
     {
         var d = _inspector.Describe("Batch Remap")!;
 

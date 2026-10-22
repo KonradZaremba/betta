@@ -90,26 +90,6 @@ public class ValidateSignatureTests
         Assert.Empty(Strings(r.GetProperty("notes")));
     }
 
-    [Theory]
-    [InlineData("List<Curve> Pack(List<double> widths)")]
-    [InlineData("(double Sum, double Mean) Stats(double[] xs)")]
-    [InlineData("double Slow(double x, IProgress<int> progress)")]
-    public async Task Generic_signature_without_a_pinned_guid_gets_pin_advice(string sig)
-    {
-        var r = await Validate(sig);
-        Assert.Contains("Guid = ", r.GetProperty("guidAdvice").GetString());
-    }
-
-    [Theory]
-    [InlineData("[GrasshopperMethod(\"Pack\", Guid = \"8b18f440-198b-0ca5-ac87-0a05f9815894\")] List<Curve> Pack(List<double> widths)")]
-    [InlineData("double Cube(double x)")]
-    [InlineData("Curve[] Offsets(Curve c, double[] distances)")]
-    public async Task Pinned_or_non_generic_signatures_get_no_pin_advice(string sig)
-    {
-        var r = await Validate(sig);
-        Assert.Equal(JsonValueKind.Null, r.GetProperty("guidAdvice").ValueKind);
-    }
-
     [Fact]
     public async Task Report_parameter_is_synthetic_and_needs_no_note()
     {

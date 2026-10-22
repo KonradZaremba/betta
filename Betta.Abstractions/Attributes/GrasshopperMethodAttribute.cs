@@ -39,9 +39,20 @@ namespace Betta.Attributes
         public string SubCategory { get; set; }
 
         /// <summary>
-        /// Optional explicit GUID. If not provided, will be generated from method signature
+        /// Optional explicit GUID, e.g. the <c>ComponentGuid</c> of a ported GH_Component.
+        /// If not provided, it is derived from the type and method name.
         /// </summary>
         public string Guid { get; set; }
+
+        /// <summary>
+        /// Earlier names of this method, so .gh files saved before a rename still open:
+        /// <c>FormerNames = new[] { "Remap" }</c>. For a method moved from another type,
+        /// give that type's full name with it: <c>"MyPlugin.IMathPack.Remap"</c>. Files
+        /// open through a hidden alias and take the current GUID when saved again.
+        /// Adding an overload (a second method with the same name) also changes the GUID
+        /// of the one that was there first; list its own name on it to keep its files.
+        /// </summary>
+        public string[] FormerNames { get; set; }
 
         /// <summary>
         /// Whether this method should be exposed as a component (default: true)

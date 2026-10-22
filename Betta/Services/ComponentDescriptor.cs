@@ -4,10 +4,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using Betta.Attributes;
 
 namespace Betta.Services
 {
@@ -64,20 +66,136 @@ namespace Betta.Services
         public bool HasTrigger { get; set; }
 
         /// <summary>
-        /// Deterministic GUID from service type + method signature. Stable across
-        /// .NET Framework and .NET 7; unlike string.GetHashCode() which is not.
-        /// Signature (not cosmetic attributes) is hashed so renaming Name/Category
-        /// does not invalidate existing .gh documents.
-        /// </summary>`
-        public static Guid GenerateGuidFromMethod(Type serviceType, MethodInfo method)
+        /// The GUID the component was published under before 0.8, when it differs
+        /// from <see cref="Guid"/>. Registered as a hidden alias so .gh files saved
+        /// with that scheme still open.
+        /// </summary>
+        public Guid? LegacyGuid { get; set; }
+
+        /// <summary>
+        /// GUIDs the component had under the earlier method and type names its
+        /// <c>FormerNames</c> list (<see cref="FormerGuidsFromAttributes"/>).
+        /// </summary>
+        public IReadOnlyList<Guid> FormerGuids { get; set; } = Array.Empty<Guid>();
+
+        /// <summary>
+        /// Every other GUID a saved .gh file may hold for this component: <see cref="LegacyGuid"/>
+        /// and <see cref="FormerGuids"/>. Each is registered as a hidden alias proxy.
+        /// </summary>
+        public IEnumerable<Guid> AliasGuids =>
+            (LegacyGuid is Guid legacy ? FormerGuids.Prepend(legacy) : FormerGuids).Where(g => g != Guid).Distinct();
+
+        /// <summary>
+        /// Deterministic GUID from the service type and method name: MD5 over
+        /// <c>Type|Method</c>. Parameters and the return type are left out, so adding,
+        /// renaming or retyping inputs and outputs keeps saved .gh files working, as a
+        /// hand-written GH_Component's fixed ComponentGuid does. Display attributes
+        /// (Name, Category) are left out too. When the type has more than one
+        /// <c>[GrasshopperMethod]</c> with this name, the overloads are told apart by
+        /// their signature (<c>Type|Method|paramType name,...|ReturnType</c> with
+        /// <see cref="StableTypeName"/>).
+        /// </summary>
+        public static Guid GenerateGuidFromMethod(Type serviceType, MethodInfo method) =>
+            IsOverloaded(serviceType, method)
+                ? SignatureGuid(serviceType, method, StableTypeName)
+                : Md5($"{StableTypeName(serviceType)}|{method.Name}");
+
+        /// <summary>
+        /// The pre-0.8 scheme: MD5 over the whole signature with <see cref="Type.FullName"/>,
+        /// which assembly-qualifies generic type arguments (<c>List`1[[System.Double,
+        /// System.Private.CoreLib, Version=8.0.0.0, …]]</c>). It changed with every
+        /// parameter change, and for generic signatures with every plugin, RhinoCommon
+        /// or .NET version.
+        /// </summary>
+        public static Guid LegacyGuidFromMethod(Type serviceType, MethodInfo method) =>
+            SignatureGuid(serviceType, method, t => t.FullName);
+
+        /// <summary>
+        /// The GUID a method is published under: <paramref name="pinnedGuid"/> when set
+        /// (<c>[GrasshopperMethod(Guid = …)]</c>, e.g. kept from a ported GH_Component),
+        /// otherwise the derived one, with the pre-0.8 GUID in <paramref name="legacyGuid"/>
+        /// when it differs.
+        /// </summary>
+        public static Guid ResolveGuid(Type serviceType, MethodInfo method, string pinnedGuid, out Guid? legacyGuid)
+        {
+            legacyGuid = null;
+            if (!string.IsNullOrEmpty(pinnedGuid)) return Guid.Parse(pinnedGuid);
+
+            var guid = GenerateGuidFromMethod(serviceType, method);
+            var legacy = LegacyGuidFromMethod(serviceType, method);
+            if (legacy != guid) legacyGuid = legacy;
+            return guid;
+        }
+
+        /// <summary>
+        /// The GUIDs <see cref="GenerateGuidFromMethod"/> gave the method under the names in
+        /// <c>[GrasshopperMethod(FormerNames = …)]</c> (earlier method names, or
+        /// <c>"Namespace.Type.Method"</c> for a method moved from another type) and
+        /// <c>[GrasshopperCollection(FormerNames = …)]</c> (earlier full type names).
+        /// An overload that lists its own name gets back the name-only GUID it had
+        /// before the overload was added.
+        /// </summary>
+        public static IReadOnlyList<Guid> FormerGuidsFromAttributes(Type serviceType, MethodInfo method) =>
+            ComputeFormerGuids(serviceType, method,
+                method.GetCustomAttribute<GrasshopperMethodAttribute>()?.FormerNames,
+                serviceType.GetCustomAttribute<GrasshopperCollectionAttribute>()?.FormerNames);
+
+        public static IReadOnlyList<Guid> ComputeFormerGuids(Type serviceType, MethodInfo method,
+            string[] formerMethodNames, string[] formerTypeNames)
+        {
+            var methodNames = (formerMethodNames ?? Array.Empty<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
+            var types = new[] { StableTypeName(serviceType) }
+                .Concat((formerTypeNames ?? Array.Empty<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()));
+            var names = new[] { method.Name }.Concat(methodNames.Where(n => !n.Contains('.'))).ToList();
+
+            var inputs = types.SelectMany(t => names.Select(m => $"{t}|{m}"))
+                .Concat(methodNames.Where(n => n.Contains('.')).Select(n => $"{n.Substring(0, n.LastIndexOf('.'))}|{n.Substring(n.LastIndexOf('.') + 1)}"));
+            // The current Type|Method hash is the GUID itself, except on an overload, which hashes its signature.
+            var current = $"{StableTypeName(serviceType)}|{method.Name}";
+            var keepCurrent = methodNames.Contains(method.Name) && IsOverloaded(serviceType, method);
+            return inputs.Where(i => keepCurrent || i != current).Distinct().Select(Md5).ToList();
+        }
+
+        /// <summary>
+        /// <see cref="Type.FullName"/> without assembly qualification: a closed generic
+        /// is written <c>List`1[System.Double]</c> instead of <c>List`1[[System.Double,
+        /// System.Private.CoreLib, Version=…]]</c>. Equal to FullName for every type
+        /// without generic arguments. Betta.Generators and Betta.Mcp build the same string.
+        /// </summary>
+        public static string StableTypeName(Type type)
+        {
+            if (type.IsArray)
+            {
+                var rank = type.GetArrayRank();
+                return StableTypeName(type.GetElementType()) + (rank == 1 ? "[]" : "[" + new string(',', rank - 1) + "]");
+            }
+            if (type.IsByRef) return StableTypeName(type.GetElementType()) + "&";
+            if (type.IsPointer) return StableTypeName(type.GetElementType()) + "*";
+            if (type.IsGenericType && !type.IsGenericTypeDefinition)
+                return type.GetGenericTypeDefinition().FullName + "[" +
+                       string.Join(",", type.GetGenericArguments().Select(StableTypeName)) + "]";
+            return type.FullName ?? type.Name;
+        }
+
+        /// <summary>
+        /// True when the service type has another public <c>[GrasshopperMethod]</c> with
+        /// the same name (disabled ones count, so toggling Enabled changes no GUID).
+        /// </summary>
+        private static bool IsOverloaded(Type serviceType, MethodInfo method) =>
+            serviceType.GetMethods().Count(m => m.Name == method.Name &&
+                                                m.GetCustomAttribute<GrasshopperMethodAttribute>() != null) > 1;
+
+        private static Guid SignatureGuid(Type serviceType, MethodInfo method, Func<Type, string> typeName)
         {
             var paramSig = string.Join(",",
-                method.GetParameters().Select(p => p.ParameterType.FullName + " " + p.Name));
-            var input = $"{serviceType.FullName}|{method.Name}|{paramSig}|{method.ReturnType.FullName}";
+                method.GetParameters().Select(p => typeName(p.ParameterType) + " " + p.Name));
+            return Md5($"{serviceType.FullName}|{method.Name}|{paramSig}|{typeName(method.ReturnType)}");
+        }
 
+        private static Guid Md5(string input)
+        {
             using var md5 = MD5.Create();
-            var bytes = md5.ComputeHash(Encoding.UTF8.GetBytes(input));
-            return new Guid(bytes);
+            return new Guid(md5.ComputeHash(Encoding.UTF8.GetBytes(input)));
         }
 
         public override string ToString()

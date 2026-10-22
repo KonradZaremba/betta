@@ -50,11 +50,10 @@ namespace TestBetta
         [Fact]
         public void TestGuidMatchesHandComputedMD5()
         {
-            // Locks the hash format: if someone "refactors" the signature string
+            // Locks the hash format: if someone "refactors" the input string
             // the existing .gh documents would silently break.
             var method = typeof(ISimpleService).GetMethod("GetValue2");
-            var expectedInput =
-                $"{typeof(ISimpleService).FullName}|GetValue2|System.Double value21212|System.Double";
+            var expectedInput = $"{typeof(ISimpleService).FullName}|GetValue2";
             using var md5 = MD5.Create();
             var expected = new Guid(md5.ComputeHash(Encoding.UTF8.GetBytes(expectedInput)));
 

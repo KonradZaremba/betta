@@ -18,6 +18,14 @@ namespace Betta.Attributes
         public string Category { get; set; }
         public string SubCategory { get; set; }
 
+        /// <summary>
+        /// Earlier full names (namespace and type) of this type, so .gh files saved before
+        /// it was renamed or moved still find its components:
+        /// <c>FormerNames = new[] { "MyPlugin.IMathPack" }</c>. Files open through a hidden
+        /// alias and take the current GUID when saved again.
+        /// </summary>
+        public string[] FormerNames { get; set; }
+
         public GrasshopperCollectionAttribute() { }
 
         public GrasshopperCollectionAttribute(string category, string subCategory = "General")

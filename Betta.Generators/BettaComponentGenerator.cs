@@ -57,12 +57,12 @@ namespace Betta.Generators
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
 
-        private static readonly DiagnosticDescriptor BETTA010_NameAttributeOverridesClrName = new(
-            id: "BETTA010",
-            title: "GrasshopperParameter.Name differs from the CLR parameter name",
-            messageFormat: "Parameter '{0}' on '{1}.{2}' has [GrasshopperParameter(Name = \"{3}\")] but the runtime hashes the CLR parameter name into the component GUID — the attribute Name affects the display only.",
+        private static readonly DiagnosticDescriptor BETTA011_OverloadedComponentMethod = new(
+            id: "BETTA011",
+            title: "Overloaded component method",
+            messageFormat: "'{0}.{1}' has more than one [GrasshopperMethod] overload, so each one's GUID includes its parameters and return type: changing them breaks saved .gh files, and adding the overload changed the GUID of the method that had the name first. Give each overload its own method name. To keep files saved before the overload, add FormerNames = new[] {{ \"{1}\" }} to that method, or pin Guid.",
             category: "Betta",
-            defaultSeverity: DiagnosticSeverity.Info,
+            defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -121,14 +121,15 @@ namespace Betta.Generators
             var collectionAttr = FindAttribute(typeSym.GetAttributes(), GrasshopperCollectionAttr);
             var (defaultCategory, defaultSubCategory) = ExtractCollectionDefaults(collectionAttr, typeSym);
 
-            foreach (var member in typeSym.GetMembers())
-            {
-                if (member is not IMethodSymbol m) continue;
-                if (m.MethodKind != MethodKind.Ordinary) continue;
-                if (m.DeclaredAccessibility != Accessibility.Public) continue;
+            var componentMethods = typeSym.GetMembers().OfType<IMethodSymbol>()
+                .Where(m => m.MethodKind == MethodKind.Ordinary && m.DeclaredAccessibility == Accessibility.Public &&
+                            FindAttribute(m.GetAttributes(), GrasshopperMethodAttr) != null)
+                .ToList();
 
+            foreach (var m in componentMethods)
+            {
                 var ghAttr = FindAttribute(m.GetAttributes(), GrasshopperMethodAttr);
-                if (ghAttr == null) continue;
+                var overloaded = componentMethods.Count(o => o.Name == m.Name) > 1;
 
                 var enabled = NamedArgBool(ghAttr, "Enabled", true);
                 // Constructor positional name (string name, string description = null)
@@ -144,11 +145,11 @@ namespace Betta.Generators
                 var iconResource = NamedArgString(ghAttr, "IconResource", null);
                 var explicitGuid = NamedArgString(ghAttr, "Guid", null);
 
-                var serviceFullName = ReflectionFullName(typeSym);
+                var serviceFullName = StableFullName(typeSym);
                 var parameters = m.Parameters
-                    .Select(p => new ParamModel(p.Name, ReflectionFullName(p.Type)))
+                    .Select(p => new ParamModel(p.Name, StableFullName(p.Type) + (p.RefKind != RefKind.None ? "&" : "")))
                     .ToArray();
-                var returnFullName = ReflectionFullName(m.ReturnType);
+                var returnFullName = StableFullName(m.ReturnType);
 
                 // Diagnostics
                 foreach (var p in m.Parameters)
@@ -160,23 +161,6 @@ namespace Betta.Generators
                             p.Locations.FirstOrDefault() ?? m.Locations.FirstOrDefault() ?? Location.None,
                             p.Name, typeSym.Name, m.Name, p.Type.ToDisplayString()));
                     }
-
-                    var paramAttr = FindAttribute(p.GetAttributes(), GrasshopperParameterAttr);
-                    if (paramAttr != null)
-                    {
-                        // ctor: (string name, string description = null) OR (name, nickName, description)
-                        string ctorParamName = null;
-                        if (paramAttr.ConstructorArguments.Length >= 1)
-                            ctorParamName = paramAttr.ConstructorArguments[0].Value as string;
-                        var attrName = NamedArgString(paramAttr, "Name", ctorParamName);
-                        if (!string.IsNullOrEmpty(attrName) && attrName != p.Name)
-                        {
-                            diagnostics.Add(Diagnostic.Create(
-                                BETTA010_NameAttributeOverridesClrName,
-                                p.Locations.FirstOrDefault() ?? m.Locations.FirstOrDefault() ?? Location.None,
-                                p.Name, typeSym.Name, m.Name, attrName));
-                        }
-                    }
                 }
 
                 Guid guid;
@@ -187,7 +171,14 @@ namespace Betta.Generators
                 }
                 else
                 {
-                    (guid, guidInput) = ComputeMethodGuidWithInput(serviceFullName, m.Name, parameters, returnFullName);
+                    if (overloaded)
+                    {
+                        diagnostics.Add(Diagnostic.Create(
+                            BETTA011_OverloadedComponentMethod,
+                            m.Locations.FirstOrDefault() ?? Location.None,
+                            typeSym.Name, m.Name));
+                    }
+                    (guid, guidInput) = ComputeMethodGuidWithInput(serviceFullName, m.Name, parameters, returnFullName, overloaded);
                 }
 
                 var hasPreview = ReturnSurfaces(m.ReturnType, PreviewInterfaceFullName);
@@ -212,7 +203,7 @@ namespace Betta.Generators
             if (methods.Count == 0 && diagnostics.Count == 0) return null;
 
             return new ServiceTypeModel(
-                fullName: ReflectionFullName(typeSym),
+                fullName: StableFullName(typeSym),
                 methods: methods,
                 diagnostics: diagnostics);
         }
@@ -436,43 +427,27 @@ namespace Betta.Generators
             return t.ContainingNamespace.ToDisplayString();
         }
 
-        // ---- Reflection-style FullName reproduction -----------------------
+        // ---- Version-free type names --------------------------------------
 
         /// <summary>
-        /// Reproduce reflection's <see cref="Type.FullName"/> from a Roslyn
-        /// symbol. The runtime hashes <c>method.ParameterType.FullName</c> and
-        /// <c>method.ReturnType.FullName</c> into the descriptor GUID, so the
-        /// generator must match those strings character-for-character or saved
-        /// .gh documents would mis-resolve.
-        ///
-        /// Examples (target == output of <c>Type.FullName</c>):
-        ///   System.Double                                   → "System.Double"
-        ///   System.Collections.Generic.List&lt;double&gt;   → "System.Collections.Generic.List`1[[System.Double, System.Private.CoreLib, Version=..., ...]]"
-        ///   Nested+Inner generic                            → "Outer+Inner`1[[T-FullName]]"
-        ///
-        /// For determinism we mirror the .NET 7 / CoreCLR convention: closed
-        /// generics include the assembly-qualified name of each type argument
-        /// in brackets. The runtime's existing reflection call produces that
-        /// exact string, so we replicate it here.
+        /// The version-free type name <c>ComponentDescriptor.StableTypeName</c> builds at
+        /// runtime: <see cref="System.Type.FullName"/> without assembly qualification, so a
+        /// closed generic is <c>System.Collections.Generic.List`1[System.Double]</c>. The GUID
+        /// hash and the blueprint's parameter type names use it, so they match the runtime
+        /// whatever assembly versions the plugin is built against or runs with.
         /// </summary>
-        internal static string ReflectionFullName(ITypeSymbol t)
+        internal static string StableFullName(ITypeSymbol t)
         {
             if (t == null) return null;
             if (t is IArrayTypeSymbol arr)
-            {
-                var elt = ReflectionFullName(arr.ElementType);
-                var ranks = arr.Rank == 1 ? "[]" : "[" + new string(',', arr.Rank - 1) + "]";
-                return elt + ranks;
-            }
+                return StableFullName(arr.ElementType) + (arr.Rank == 1 ? "[]" : "[" + new string(',', arr.Rank - 1) + "]");
+            if (t is IPointerTypeSymbol ptr) return StableFullName(ptr.PointedAtType) + "*";
             if (t is INamedTypeSymbol nt)
             {
+                // (a, b, ..., i) is ValueTuple`8 with the rest nested in TRest, as at runtime.
+                if (nt.IsTupleType && nt.TupleUnderlyingType != null) nt = nt.TupleUnderlyingType;
                 if (nt.IsGenericType && !nt.IsUnboundGenericType)
-                {
-                    var def = nt.ConstructedFrom;
-                    var defFull = NonGenericFullName(def);
-                    var args = nt.TypeArguments.Select(a => "[" + ReflectionAssemblyQualifiedName(a) + "]");
-                    return defFull + "[" + string.Join(",", args) + "]";
-                }
+                    return NonGenericFullName(nt.ConstructedFrom) + "[" + string.Join(",", nt.TypeArguments.Select(StableFullName)) + "]";
                 return NonGenericFullName(nt);
             }
             // Type parameters, dynamic, etc — fall back to display string
@@ -497,112 +472,28 @@ namespace Betta.Generators
             return ns != null ? ns + "." + nested : nested;
         }
 
-        // .NET reference assemblies that all forward to System.Private.CoreLib
-        // at runtime. When emitting the assembly identity for a type that
-        // Roslyn sees in one of these, we substitute the runtime identity so
-        // the generated FullName string matches what Type.FullName would
-        // produce at runtime. Without this map the hash drifts on every
-        // generic type whose ref assembly is "System.Collections" /
-        // "System.Runtime" / "netstandard" / ... — which is most of them.
-        private static readonly HashSet<string> _coreRefAssemblyNames = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "mscorlib",
-            "netstandard",
-            "System.Runtime",
-            "System.Collections",
-            "System.Collections.Generic",
-            "System.Collections.Concurrent",
-            "System.Collections.Immutable",
-            "System.Collections.NonGeneric",
-            "System.Collections.Specialized",
-            "System.Linq",
-            "System.ObjectModel",
-            "System.Memory",
-            "System.Numerics",
-            "System.Numerics.Vectors",
-            "System.Threading",
-            "System.Threading.Tasks",
-            "System.Threading.Tasks.Extensions",
-            "System.Threading.Tasks.Parallel",
-            "System.Threading.Thread",
-            "System.Threading.ThreadPool",
-            "System.IO",
-            "System.Text.Encoding",
-            "System.Text.Encoding.Extensions",
-            "System.ValueTuple",
-            "System.Console",
-            "System.Diagnostics.Debug",
-            "System.Diagnostics.Tools",
-            "System.Reflection",
-            "System.Reflection.Primitives",
-            "System.Resources.ResourceManager",
-            "System.Runtime.Extensions",
-            "System.Runtime.InteropServices",
-        };
-
-        private const string CoreLibAsmName = "System.Private.CoreLib";
-        private const string CoreLibVersion = "7.0.0.0";
-        private const string CoreLibToken = "7cec85d7bea7798e";
-
-        private static string ReflectionAssemblyQualifiedName(ITypeSymbol t)
-        {
-            var full = ReflectionFullName(t);
-            var asm = t.ContainingAssembly;
-            if (asm == null) return full;
-            var id = asm.Identity;
-
-            // Build the identity string. Types in well-known core ref assemblies
-            // forward to System.Private.CoreLib at runtime, so reflection emits
-            // that identity in Type.FullName / Type.AssemblyQualifiedName. We
-            // mirror that mapping here so the generated and reflection paths
-            // hash to the same bytes.
-            var sb = new StringBuilder();
-            sb.Append(full);
-            sb.Append(", ");
-            if (_coreRefAssemblyNames.Contains(id.Name))
-            {
-                sb.Append(CoreLibAsmName);
-                sb.Append(", Version=").Append(CoreLibVersion);
-                sb.Append(", Culture=neutral");
-                sb.Append(", PublicKeyToken=").Append(CoreLibToken);
-            }
-            else
-            {
-                sb.Append(id.Name);
-                sb.Append(", Version=");
-                sb.Append(id.Version);
-                sb.Append(", Culture=");
-                sb.Append(string.IsNullOrEmpty(id.CultureName) ? "neutral" : id.CultureName);
-                sb.Append(", PublicKeyToken=");
-                var pkt = id.PublicKeyToken;
-                if (pkt.IsDefaultOrEmpty) sb.Append("null");
-                else
-                {
-                    foreach (var b in pkt) sb.Append(b.ToString("x2"));
-                }
-            }
-            return sb.ToString();
-        }
-
         // ---- Compile-time GUID --------------------------------------------
 
         /// <summary>
         /// Reproduces <c>ComponentDescriptor.GenerateGuidFromMethod</c> exactly:
-        ///   paramSig = ",".join(p.ParameterType.FullName + " " + p.Name)
-        ///   input    = $"{serviceFullName}|{methodName}|{paramSig}|{returnFullName}"
+        ///   input    = $"{serviceFullName}|{methodName}"
         ///   guid     = new Guid(MD5(UTF8(input)))
+        /// For an overloaded method name the signature is appended (version-free type names):
+        ///   paramSig = ",".join(StableTypeName(p.ParameterType) + " " + p.Name)
+        ///   input    = $"{serviceFullName}|{methodName}|{paramSig}|{returnFullName}"
         /// </summary>
         internal static Guid ComputeMethodGuid(string serviceFullName, string methodName,
-            IReadOnlyList<ParamModel> parameters, string returnFullName)
+            IReadOnlyList<ParamModel> parameters, string returnFullName, bool overloaded)
         {
-            return ComputeMethodGuidWithInput(serviceFullName, methodName, parameters, returnFullName).Guid;
+            return ComputeMethodGuidWithInput(serviceFullName, methodName, parameters, returnFullName, overloaded).Guid;
         }
 
         internal static (Guid Guid, string Input) ComputeMethodGuidWithInput(string serviceFullName, string methodName,
-            IReadOnlyList<ParamModel> parameters, string returnFullName)
+            IReadOnlyList<ParamModel> parameters, string returnFullName, bool overloaded)
         {
-            var paramSig = string.Join(",", parameters.Select(p => p.TypeFullName + " " + p.Name));
-            var input = serviceFullName + "|" + methodName + "|" + paramSig + "|" + returnFullName;
+            var input = serviceFullName + "|" + methodName;
+            if (overloaded)
+                input += "|" + string.Join(",", parameters.Select(p => p.TypeFullName + " " + p.Name)) + "|" + returnFullName;
             using var md5 = MD5.Create();
             var bytes = md5.ComputeHash(Encoding.UTF8.GetBytes(input));
             return (new Guid(bytes), input);

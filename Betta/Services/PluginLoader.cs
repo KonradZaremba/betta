@@ -249,6 +249,7 @@ namespace Betta.Services
                 var oldAsm = existing;
                 var removed = _registry.UnregisterAssembly(oldAsm);
                 var droppedFactories = ParamRegistry.UnregisterAssembly(oldAsm);
+                LateServices.UnregisterAssembly(oldAsm);
 
                 if (_alcByPath.TryRemove(path, out var oldAlc))
                 {

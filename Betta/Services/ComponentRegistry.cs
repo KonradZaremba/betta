@@ -317,9 +317,7 @@ namespace Betta.Services
             {
                 if (services.Any(s => s.ServiceType == serviceType)) continue;
 
-                var impl = candidates
-                    .FirstOrDefault(t => t != null && !t.IsAbstract && !t.IsInterface && serviceType.IsAssignableFrom(t));
-
+                var impl = LateServices.FindImplementation(serviceType, candidates);
                 if (impl != null)
                     services.AddSingleton(serviceType, impl);
             }

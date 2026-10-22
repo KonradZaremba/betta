@@ -108,8 +108,13 @@ namespace Betta.Components
             _descriptor = Pending;
             if (_descriptor != null && Startup.ServiceProvider != null)
             {
-                _service = Startup.ServiceProvider.GetService(_descriptor.ServiceType);
                 _logger = Startup.ServiceProvider.GetService<ILogger<BettaComponent>>() ?? _logger;
+                // A plugin dropped in while Rhino runs has no binding in the provider
+                // (built once at startup); LateServices creates its implementation.
+                var descriptor = _descriptor;
+                _service = LateServices.Resolve(Startup.ServiceProvider, descriptor.ServiceType,
+                    ex => _logger.LogError(ex, "Could not create {Service} for {Component}",
+                        descriptor.ServiceType.Name, descriptor.Name));
             }
 
             if (_descriptor != null)
@@ -159,7 +164,8 @@ namespace Betta.Components
             if (_service == null)
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
-                    $"Service '{_descriptor.ServiceType.Name}' not registered in DI container");
+                    $"Service '{_descriptor.ServiceType.Name}' could not be created (see Betta.log). " +
+                    "If its plugin was added while Rhino was running and configures services in an IBettaModule, restart Rhino.");
                 return;
             }
 

@@ -15,7 +15,7 @@ What's planned after the current release, roughly in priority order. Shipped wor
 
 - **In-Rhino integration tests** (testing brief Tier 3) — run the real solve pipeline on a runner with Rhino.
 - **Hot-reload of replaced plugins** — true unload; today a replaced DLL makes Betta ask for a restart.
-- **DI for plugins dropped in mid-session** — the service provider is built once at startup, so runtime-dropped plugins skip `IBettaModule`.
+- **`IBettaModule` for plugins dropped in mid-session** — their services are created (constructor injection from the startup provider), but the provider is built once, so their own `IBettaModule` registrations wait for a Rhino restart.
 - **Canvas LoadLibrary component** — load a plugin DLL from the Grasshopper canvas.
 - **Settings panel** — a real UI for Betta's options.
 - **More packages on nuget.org** — `Betta.Generators` and `Betta.Docs` (dotnet tool).

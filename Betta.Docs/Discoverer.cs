@@ -116,7 +116,7 @@ internal static class Discoverer
                     // A reference assembly (RhinoCommon, Grasshopper, ...) is
                     // missing. Skip this method; report once per DLL so the
                     // caller can install the missing dep if desired.
-                    Console.Error.WriteLine($"    skip {serviceType.Name}.{method.Name}: missing reference {ex.FileName}");
+                    Console.Error.WriteLine($"    skip {serviceType.Name}.{method.Name}: missing reference {(string.IsNullOrEmpty(ex.FileName) ? ex.Message : ex.FileName)}");
                 }
             }
         }
@@ -157,12 +157,9 @@ internal static class Discoverer
         var defaultVal = NamedArg(attr, "DefaultValue");
         var hasDefault = defaultVal is not null;
 
-        // Treat List<T> as list access, otherwise item.
         var paramType = p.ParameterType;
-        var isList = paramType.IsGenericType
-                     && paramType.GetGenericTypeDefinition().Name.StartsWith("List`1");
-
-        var elementType = isList ? paramType.GetGenericArguments()[0] : paramType;
+        var isList = IsListAccess(paramType);
+        var elementType = isList ? ElementTypeOf(paramType) : paramType;
 
         return new InputInfo(
             ClrName: p.Name ?? "?",
@@ -174,6 +171,28 @@ internal static class Discoverer
             Optional: optional,
             HasDefault: hasDefault,
             DefaultValue: defaultVal);
+    }
+
+    /// <summary>
+    /// The runtime picks list access for any IEnumerable except string (ParamVector.GetParamAccessType),
+    /// for inputs and outputs alike; GH_Structure is tree access and stays one item here.
+    /// </summary>
+    internal static bool IsListAccess(Type t)
+    {
+        if (t.FullName == "System.String") return false;
+        if (t.IsGenericType && t.GetGenericTypeDefinition().FullName == "Grasshopper.Kernel.Data.GH_Structure`1") return false;
+        if (t.FullName == "System.Collections.IEnumerable") return true;
+        return t.GetInterfaces().Any(i => i.FullName == "System.Collections.IEnumerable");
+    }
+
+    /// <summary>T of an IEnumerable&lt;T&gt; (ParamVector.GetAnyElementType), else the type itself.</summary>
+    internal static Type ElementTypeOf(Type t)
+    {
+        static bool IsGenericEnumerable(Type i) =>
+            i.IsGenericType && i.GetGenericTypeDefinition().FullName == "System.Collections.Generic.IEnumerable`1";
+        if (IsGenericEnumerable(t)) return t.GetGenericArguments()[0];
+        var e = t.GetInterfaces().FirstOrDefault(IsGenericEnumerable);
+        return e is null ? t : e.GetGenericArguments()[0];
     }
 
     private static bool IsBettaCollection(Type t)

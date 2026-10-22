@@ -34,6 +34,10 @@ jobs:
       - name: Test Betta.Mcp
         run: dotnet test Betta.Mcp.Tests/Betta.Mcp.Tests.csproj -c Release --logger "trx;LogFileName=mcp-results.trx"
 
+      # Betta.Docs (net8.0) is also outside Betta.sln; its tests need no Rhino install.
+      - name: Test Betta.Docs
+        run: dotnet test Betta.Docs.Tests/Betta.Docs.Tests.csproj -c Release --logger "trx;LogFileName=docs-results.trx"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -42,3 +46,4 @@ jobs:
           path: |
             TestBetta/TestResults/*.trx
             Betta.Mcp.Tests/TestResults/*.trx
+            Betta.Docs.Tests/TestResults/*.trx

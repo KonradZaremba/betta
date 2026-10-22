@@ -31,6 +31,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Betta.Docs.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- MetadataLoadContext: read assemblies without executing them. -->
     <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" />
   </ItemGroup>

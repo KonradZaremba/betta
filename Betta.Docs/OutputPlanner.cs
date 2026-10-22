@@ -36,6 +36,10 @@ internal static class OutputPlanner
                 or "System.Threading.Tasks.ValueTask`1" or "System.IObservable`1")
             outputType = outputType.GetGenericArguments()[0];
 
+        // A bare Task / ValueTask carries no value: no outputs, like void.
+        if (outputType.FullName is "System.Threading.Tasks.Task" or "System.Threading.Tasks.ValueTask")
+            return plans;
+
         // Collect explicit [GrasshopperOutput] attrs (method + return parameter).
         var attrs = new List<CustomAttributeData>();
         foreach (var a in method.GetCustomAttributesData())
@@ -85,17 +89,21 @@ internal static class OutputPlanner
 
         if (IsTupleType(outputType))
         {
-            var tupleTypes = outputType.GetGenericArguments();
+            var tupleTypes = GetTupleElementTypes(outputType);
             var tupleNames = ReadTupleElementNames(method);
 
-            for (int i = 0; i < tupleTypes.Length; i++)
+            for (int i = 0; i < tupleTypes.Count; i++)
             {
                 var a = AttrFor(i);
-                var elementName = (tupleNames is not null && i < tupleNames.Count) ? SplitWords(tupleNames[i]) : null;
+                var elementName = (tupleNames is not null && i < tupleNames.Count) ? SplitWords(tupleNames[i]!) : null;
                 var name = (string?)CtorOrNamed(a, "Name", 0) ?? elementName ?? $"Output{i + 1}";
                 var nick = (string?)NamedOnly(a, "NickName") ?? (string?)CtorOrNamed(a, "Name", 0) ?? elementName ?? $"Out{i + 1}";
                 var desc = (string?)CtorOrNamed(a, "Description", 1) ?? $"Method output {i + 1}";
-                plans.Add(new OutputInfo(name, nick, desc, Discoverer.TypeDisplay(tupleTypes[i]), IsList: false));
+                // The runtime builds the param from the element type, and ToGhParam gives any
+                // IEnumerable list access, so (List<Curve> Outlines, ...) is a list output.
+                var isList = Discoverer.IsListAccess(tupleTypes[i]);
+                var shown = isList ? Discoverer.ElementTypeOf(tupleTypes[i]) : tupleTypes[i];
+                plans.Add(new OutputInfo(name, nick, desc, Discoverer.TypeDisplay(shown), IsList: isList));
             }
             return plans;
         }
@@ -103,19 +111,36 @@ internal static class OutputPlanner
         // Opaque check — type-level or method-return-level
         bool opaque = IsTypeOpaque(outputType) || IsMethodReturnOpaque(method);
 
-        // Class → properties (unless opaque)
+        // Raw Bitmap / Image: one output instead of exploding their property surface.
+        if (outputType.FullName is "System.Drawing.Bitmap" or "System.Drawing.Image")
+        {
+            var a = AttrFor(0);
+            plans.Add(new OutputInfo(
+                NameOrDefault(a, "Image"),
+                NickOrDefault(a, "Img"),
+                DescOrDefault(a, "Bitmap output"),
+                Discoverer.TypeDisplay(outputType),
+                IsList: false));
+            return plans;
+        }
+
+        // Class → one output per explodable property (unless opaque)
         if (!opaque && outputType.IsClass && outputType.FullName != "System.String")
         {
             var props = outputType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanRead && IsSimpleType(p.PropertyType))
+                .Where(p => p.CanRead && IsExplodableProperty(p.PropertyType))
                 .Take(10)
                 .ToList();
             if (props.Count > 0)
             {
                 foreach (var prop in props)
+                {
+                    var isList = IsListType(prop.PropertyType);
+                    var shown = isList ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                     plans.Add(new OutputInfo(
                         SplitWords(prop.Name), SplitWords(prop.Name), $"Property: {prop.Name}",
-                        Discoverer.TypeDisplay(prop.PropertyType), IsList: false));
+                        Discoverer.TypeDisplay(shown), IsList: isList));
+                }
                 return plans;
             }
         }
@@ -219,6 +244,34 @@ internal static class OutputPlanner
             }
         }
         return null;
+    }
+
+    /// <summary>Mirrors the runtime: a tuple of 8 or more elements nests the rest in its last slot (TRest).</summary>
+    private static List<Type> GetTupleElementTypes(Type tupleType)
+    {
+        var acc = new List<Type>();
+        var t = tupleType;
+        while (true)
+        {
+            var args = t.GetGenericArguments();
+            if (args.Length < 8) { acc.AddRange(args); break; }
+            acc.AddRange(args.Take(7));
+            if (!IsTupleType(args[7])) { acc.Add(args[7]); break; }
+            t = args[7];
+        }
+        return acc;
+    }
+
+    private static bool IsListType(Type t) =>
+        t.IsGenericType && t.GetGenericTypeDefinition().Name.StartsWith("List`1");
+
+    /// <summary>Mirrors the runtime's IsExplodableProperty: simple, opaque, or List of either.</summary>
+    private static bool IsExplodableProperty(Type t)
+    {
+        if (IsSimpleType(t) || IsTypeOpaque(t)) return true;
+        if (!IsListType(t)) return false;
+        var element = t.GetGenericArguments()[0];
+        return IsSimpleType(element) || IsTypeOpaque(element);
     }
 
     private static bool IsTupleType(Type t)

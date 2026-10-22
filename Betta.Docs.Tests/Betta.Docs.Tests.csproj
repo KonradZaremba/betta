@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.6.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <!-- The Bitmap fixture; same pin as the runtime. -->
+    <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+    <!--
+      Compile-only, so RhinoCommon.dll never lands in the test output: betta-docs probes its own folder,
+      and the tests must prove it finds RhinoCommon through BETTA_RHINO_SYSTEM_FOLDER instead.
+    -->
+    <PackageReference Include="RhinoCommon" Version="8.21.25188.17001" IncludeAssets="compile" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Betta.Docs\Betta.Docs.csproj" />
+    <ProjectReference Include="..\Betta.Abstractions\Betta.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>RhinoCommonPath</_Parameter1>
+      <_Parameter2>$(PkgRhinoCommon)\lib\net7.0\RhinoCommon.dll</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

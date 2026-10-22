@@ -1,0 +1,20 @@
+{
+    "date":  "2026-10-22 11:14",
+    "model":  "sonnet",
+    "runs":  3,
+    "max_turns":  80,
+    "max_budget_usd":  8,
+    "arms":  [
+                 "betta-guide-skill-mcp",
+                 "vanilla",
+                 "betta-guide"
+             ],
+    "git_commit":  "987dacf",
+    "dry_run":  false,
+    "extra_args":  [
+
+                   ],
+    "isolation_flags":  "--setting-sources project,local --strict-mcp-config --mcp-config \u003cempty\u003e --no-session-persistence --permission-mode acceptEdits --allowedTools Read Edit Write Glob Grep Bash(dotnet build:*) Bash(dotnet restore:*) PowerShell(dotnet build:*) PowerShell(dotnet restore:*) Bash(ls:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(grep:*) Bash(find:*)",
+    "abstractions_version":  "0.8.0-bench.2",
+    "mcp_arm":  "arms ending in -mcp: --mcp-config with one stdio server \"betta\" (Betta.Mcp from this checkout, BETTA_PLUGIN_FOLDER = the task\u0027s published build) and mcp__betta + ToolSearch added to --allowedTools"
+}

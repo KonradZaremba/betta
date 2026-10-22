@@ -16,8 +16,9 @@ Latest results and what they mean: [RESULTS.md](RESULTS.md).
   `final_context_tokens` (context size of the last API call, from the last `usage.iterations` element).
 - Independently of the agent: `dotnet build -c Release` in the workspace (pass/fail, error count). Benchmark builds
   never deploy: a `Directory.Build.targets` above the workspaces blanks the scaffold's copy into `%AppData%`.
-- For a task that changes an existing component (`t5`): the GUID Betta publishes for it after the change, read with
-  Betta.Mcp's `betta_describe`, and `guid_kept` = whether it still equals the published build's GUID.
+- For a task that changes an existing component (`t5`, `t8`): the GUID Betta publishes for it after the change, read
+  with Betta.Mcp's `betta_describe`, and `guid_kept` = whether saved files still find it: the published build's GUID
+  is still its GUID or one of its hidden aliases (`FormerNames`). Plain `GH_Component`s keep theirs by construction.
 - Code the agent added: `git diff --no-index -U0` of scaffold+seed vs workspace (ignoring `bin/`, `obj/`, `.claude/`):
   files changed, added lines, added chars, `added_est_tokens` = ceil(chars / 4). **est.** only; not a tokenizer.
 - Reference implementations (`reference/`): the minimal idiomatic code for each task in each style, measured
@@ -35,6 +36,7 @@ Tasks (`tasks/`; prompt text is identical for every arm):
 | `t5-refactor` | change the existing "Remap": rename input, add a boolean input and a second output, move subcategory |
 | `t6-shelfpack` | add "Shelf Pack": about 100 lines of packing logic, list inputs, an error case and a warn-but-still-output case |
 | `t7-panels` | add "Panel Grid": surface panelling and flatness check, same error and warning cases |
+| `t8-rename` | rename the existing "Remap" to "Map Range", in the toolbar and in the C# method/class and type names |
 
 Arms (`-Arms`, default `betta betta-noskill vanilla`; an unknown arm throws):
 
@@ -42,6 +44,7 @@ Arms (`-Arms`, default `betta betta-noskill vanilla`; an unknown arm throws):
 - `betta-noskill`: `scaffolds/betta` with no `.claude` folder.
 - `betta-guide`: `scaffolds/betta` plus the `CLAUDE.md` agent guide the `dotnet new` templates ship (what a new project has).
 - `betta-guide-skill`: the guide plus the skill.
+- `betta-guide-skill-mcp`: the guide, the skill and Betta.Mcp (everything Betta offers an agent).
 - `betta-guide-mcp`: the guide plus Betta.Mcp, built from this checkout and pointed at a Libraries folder holding the
   task's published (unchanged) build.
 - `vanilla`: `scaffolds/vanilla` (plain `GH_Component`).
@@ -70,6 +73,11 @@ powershell -NoProfile -File bench/tokens/run.ps1 -Tasks t1 -Arms betta,betta-nos
 # an unpublished SDK API: pack Betta.Abstractions as a unique prerelease, restore it once into the NuGet cache
 # (e.g. `dotnet restore <any project> --source <pack folder> --source https://api.nuget.org/v3/index.json`), then:
 powershell -NoProfile -File bench/tokens/run.ps1 -Tasks t6,t7 -Arms betta-guide -AbstractionsVersion 0.8.0-bench.1
+# a whole library from scratch (the facade use case), then load every build headlessly and score it against the brief
+powershell -NoProfile -File bench/tokens/run.ps1 -Tasks u1-facade -Arms betta-guide-skill-mcp,vanilla -MaxTurns 80 -MaxBudgetUsd 8 -AbstractionsVersion 0.8.0-bench.2
+dotnet build bench/tokens/inspect -c Release; powershell -NoProfile -File bench/tokens/score-usecase.ps1 -OutDir <results folder>
+# where do the turns go? -Trace also keeps each session's transcript (stream-json) as raw/<run>.jsonl
+powershell -NoProfile -File bench/tokens/run.ps1 -Tasks t2 -Arms betta-guide -Runs 1 -Trace -OutDir <scratch folder>
 ```
 
 Output goes to `bench/tokens/results/<yyyy-MM-dd-HHmm>/` (`runs.csv`, `report.md`, `meta.json`, `raw/*.json`,

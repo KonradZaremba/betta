@@ -1,0 +1,588 @@
+{
+  "plugin": "BenchPlugin.gha",
+  "kind": "gh_component",
+  "components": [
+    {
+      "name": "Add",
+      "nickName": "Add",
+      "category": "Bench",
+      "subCategory": "Math",
+      "guid": "a3c1f2d4-7b58-4e19-8d36-0c2e5f9a4b71",
+      "inputs": [
+        {
+          "name": "A",
+          "nickName": "A",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "B",
+          "nickName": "B",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Sum",
+          "nickName": "S",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "AddComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Panelize Surface",
+      "nickName": "Panelize",
+      "category": "Facade",
+      "subCategory": "Panels",
+      "guid": "2f6b9a10-84c3-4d57-a1e2-7b0c3d5e9f11",
+      "inputs": [
+        {
+          "name": "Surface",
+          "nickName": "S",
+          "paramType": "Param_Surface",
+          "typeName": "Surface",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "U Count",
+          "nickName": "U",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "V Count",
+          "nickName": "V",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Panels",
+          "nickName": "P",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Outlines",
+          "nickName": "O",
+          "paramType": "Param_Curve",
+          "typeName": "Curve",
+          "access": "list",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "PanelizeSurfaceComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Panel Info",
+      "nickName": "Panel Info",
+      "category": "Facade",
+      "subCategory": "Panels",
+      "guid": "7e1d3c52-0a96-4b48-8f23-d4a5b6c70e22",
+      "inputs": [
+        {
+          "name": "Panel",
+          "nickName": "P",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Corners",
+          "nickName": "C",
+          "paramType": "Param_Point",
+          "typeName": "Point",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Outline",
+          "nickName": "O",
+          "paramType": "Param_Curve",
+          "typeName": "Curve",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Area",
+          "nickName": "A",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Center",
+          "nickName": "Ctr",
+          "paramType": "Param_Point",
+          "typeName": "Point",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Index",
+          "nickName": "I",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "PanelInfoComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Planarity",
+      "nickName": "Planarity",
+      "category": "Facade",
+      "subCategory": "Analysis",
+      "guid": "9b4f2e68-31d7-4a05-b8c9-1e6f7a8d0c33",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "P",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Tolerance",
+          "nickName": "T",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Deviation",
+          "nickName": "D",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Flat",
+          "nickName": "F",
+          "paramType": "Param_Boolean",
+          "typeName": "Boolean",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Flat Count",
+          "nickName": "N",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "PlanarityComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Classify Panels",
+      "nickName": "Classify",
+      "category": "Facade",
+      "subCategory": "Analysis",
+      "guid": "4c8a5d91-62e0-4f13-97b4-a2d3e5f60744",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "P",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Tolerance",
+          "nickName": "T",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Type",
+          "nickName": "Ty",
+          "paramType": "Param_String",
+          "typeName": "Text",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Flat Count",
+          "nickName": "F",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Cold Bent Count",
+          "nickName": "C",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Custom Count",
+          "nickName": "Cu",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "ClassifyPanelsComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Panel Stats",
+      "nickName": "Stats",
+      "category": "Facade",
+      "subCategory": "Analysis",
+      "guid": "d5e2b7a3-9f48-4c61-a0d7-3b8c1e4f5a55",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "P",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Total Area",
+          "nickName": "Sum",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Min Area",
+          "nickName": "Min",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Max Area",
+          "nickName": "Max",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Mean Area",
+          "nickName": "Mean",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "PanelStatsComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Group Identical Panels",
+      "nickName": "Group",
+      "category": "Facade",
+      "subCategory": "Fabrication",
+      "guid": "e8f3a1c4-7b25-4d90-8e16-5a9c2d4b6f66",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "P",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Tolerance",
+          "nickName": "T",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Group",
+          "nickName": "G",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Group Count",
+          "nickName": "N",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Representatives",
+          "nickName": "R",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "GroupIdenticalPanelsComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Nest On Sheets",
+      "nickName": "Nest",
+      "category": "Facade",
+      "subCategory": "Fabrication",
+      "guid": "1a2b3c4d-5e6f-4a70-8b91-c2d3e4f50777",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "P",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Sheet Width",
+          "nickName": "W",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Sheet Height",
+          "nickName": "H",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Spacing",
+          "nickName": "S",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Outlines",
+          "nickName": "O",
+          "paramType": "Param_Curve",
+          "typeName": "Curve",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Sheet",
+          "nickName": "S",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Sheet Count",
+          "nickName": "N",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Utilization",
+          "nickName": "U",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "NestOnSheetsComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Cut List",
+      "nickName": "Cut List",
+      "category": "Facade",
+      "subCategory": "Fabrication",
+      "guid": "6d7e8f90-a1b2-4c3d-9e4f-5a6b7c8d9e88",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "P",
+          "paramType": "PanelParam",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Path",
+          "nickName": "Pa",
+          "paramType": "Param_String",
+          "typeName": "Text",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Write",
+          "nickName": "W",
+          "paramType": "Param_Boolean",
+          "typeName": "Boolean",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CSV",
+          "nickName": "CSV",
+          "paramType": "Param_String",
+          "typeName": "Text",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Written",
+          "nickName": "W",
+          "paramType": "Param_Boolean",
+          "typeName": "Boolean",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "type": "CutListComponent",
+        "baseTypes": [
+          "GH_Component",
+          "GH_ActiveObject",
+          "GH_DocumentObject",
+          "GH_InstanceDescription",
+          "Object"
+        ],
+        "isAsync": false
+      }
+    }
+  ]
+}

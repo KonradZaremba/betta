@@ -1,0 +1,566 @@
+{
+  "plugin": "BenchPlugin.dll",
+  "kind": "betta",
+  "components": [
+    {
+      "name": "Cube",
+      "nickName": "Cube",
+      "category": "Bench",
+      "subCategory": "Math",
+      "guid": "b0446475-bcd4-a3dd-4c4a-16bcf8e9a3de",
+      "inputs": [
+        {
+          "name": "Value",
+          "nickName": "Value",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Output",
+          "nickName": "Out",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IMyPack.Cube",
+        "trigger": false,
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Stats",
+      "nickName": "Stats",
+      "category": "Bench",
+      "subCategory": "Math",
+      "guid": "8426c629-78cf-47c9-1cca-70bb570f740b",
+      "inputs": [
+        {
+          "name": "Numbers",
+          "nickName": "Numbers",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "list",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Sum",
+          "nickName": "Sum",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Average",
+          "nickName": "Average",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IMyPack.Stats",
+        "trigger": false,
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Panelize Surface",
+      "nickName": "Panelize Surface",
+      "category": "Facade",
+      "subCategory": "Panels",
+      "guid": "23b75387-c198-c692-eca8-d67f50bbbeee",
+      "inputs": [
+        {
+          "name": "Surface",
+          "nickName": "Surface",
+          "paramType": "Param_Surface",
+          "typeName": "Surface",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "U Count",
+          "nickName": "U Count",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "V Count",
+          "nickName": "V Count",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Panels",
+          "nickName": "Panels",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Outlines",
+          "nickName": "Outlines",
+          "paramType": "Param_Curve",
+          "typeName": "Curve",
+          "access": "list",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IFacadePack.PanelizeSurface",
+        "trigger": false,
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Panel Info",
+      "nickName": "Panel Info",
+      "category": "Facade",
+      "subCategory": "Panels",
+      "guid": "76d62e9a-4591-b6bb-4e5d-3a8d11f243a3",
+      "inputs": [
+        {
+          "name": "Panel",
+          "nickName": "Panel",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Corners",
+          "nickName": "Corners",
+          "paramType": "Param_Point",
+          "typeName": "Point",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Outline",
+          "nickName": "Outline",
+          "paramType": "Param_Curve",
+          "typeName": "Curve",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Area",
+          "nickName": "Area",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Center",
+          "nickName": "Center",
+          "paramType": "Param_Point",
+          "typeName": "Point",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Index",
+          "nickName": "Index",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IFacadePack.PanelInfo",
+        "trigger": false,
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Planarity",
+      "nickName": "Planarity",
+      "category": "Facade",
+      "subCategory": "Analysis",
+      "guid": "5aa4fafb-b67e-3196-fce9-ad3fc9dcdafd",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "Panels",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Tolerance",
+          "nickName": "Tolerance",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Deviation",
+          "nickName": "Deviation",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Flat",
+          "nickName": "Flat",
+          "paramType": "Param_Boolean",
+          "typeName": "Boolean",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "FlatCount",
+          "nickName": "FlatCount",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IFacadePack.Planarity",
+        "trigger": false,
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Classify Panels",
+      "nickName": "Classify Panels",
+      "category": "Facade",
+      "subCategory": "Analysis",
+      "guid": "0ef632ef-57f4-af1e-2b7c-51aa702fdbfd",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "Panels",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Tolerance",
+          "nickName": "Tolerance",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Type",
+          "nickName": "Type",
+          "paramType": "Param_String",
+          "typeName": "Text",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "FlatCount",
+          "nickName": "FlatCount",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "ColdBentCount",
+          "nickName": "ColdBentCount",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "CustomCount",
+          "nickName": "CustomCount",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IFacadePack.ClassifyPanels",
+        "trigger": false,
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Panel Stats",
+      "nickName": "Panel Stats",
+      "category": "Facade",
+      "subCategory": "Analysis",
+      "guid": "7606fc34-0810-f6e1-a23b-72e3a8f7e284",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "Panels",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "TotalArea",
+          "nickName": "TotalArea",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "MinArea",
+          "nickName": "MinArea",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "MaxArea",
+          "nickName": "MaxArea",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "MeanArea",
+          "nickName": "MeanArea",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IFacadePack.PanelStats",
+        "trigger": false,
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Group Identical Panels",
+      "nickName": "Group Identical Panels",
+      "category": "Facade",
+      "subCategory": "Fabrication",
+      "guid": "82d37adf-1b24-e100-8075-dfb5cd6d0fcc",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "Panels",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Tolerance",
+          "nickName": "Tolerance",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Group",
+          "nickName": "Group",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "GroupCount",
+          "nickName": "GroupCount",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Representatives",
+          "nickName": "Representatives",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IFacadePack.GroupIdenticalPanels",
+        "trigger": false,
+        "isAsync": false
+      }
+    },
+    {
+      "name": "Nest On Sheets",
+      "nickName": "Nest On Sheets",
+      "category": "Facade",
+      "subCategory": "Fabrication",
+      "guid": "64c71af7-9aa3-f874-850d-1e9cf208a210",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "Panels",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Sheet Width",
+          "nickName": "Sheet Width",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Sheet Height",
+          "nickName": "Sheet Height",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Spacing",
+          "nickName": "Spacing",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Outlines",
+          "nickName": "Outlines",
+          "paramType": "Param_Curve",
+          "typeName": "Curve",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Sheet",
+          "nickName": "Sheet",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "SheetCount",
+          "nickName": "SheetCount",
+          "paramType": "Param_Integer",
+          "typeName": "Integer",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Utilization",
+          "nickName": "Utilization",
+          "paramType": "Param_Number",
+          "typeName": "Number",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IFacadePack.NestOnSheets",
+        "trigger": false,
+        "isAsync": true
+      }
+    },
+    {
+      "name": "Cut List",
+      "nickName": "Cut List",
+      "category": "Facade",
+      "subCategory": "Fabrication",
+      "guid": "ee98a5e0-2cf6-b4d8-8876-fc803e7bc5a5",
+      "inputs": [
+        {
+          "name": "Panels",
+          "nickName": "Panels",
+          "paramType": "Param_BettaGoo\u00601",
+          "typeName": "Panel",
+          "access": "list",
+          "optional": false
+        },
+        {
+          "name": "Path",
+          "nickName": "Path",
+          "paramType": "Param_String",
+          "typeName": "Text",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Write",
+          "nickName": "Write",
+          "paramType": "Param_Boolean",
+          "typeName": "Boolean",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CSV",
+          "nickName": "CSV",
+          "paramType": "Param_String",
+          "typeName": "Text",
+          "access": "item",
+          "optional": false
+        },
+        {
+          "name": "Written",
+          "nickName": "Written",
+          "paramType": "Param_Boolean",
+          "typeName": "Boolean",
+          "access": "item",
+          "optional": false
+        }
+      ],
+      "extra": {
+        "method": "IFacadePack.CutList",
+        "trigger": false,
+        "isAsync": false
+      }
+    }
+  ]
+}

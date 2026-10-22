@@ -88,16 +88,22 @@ function New-BettaLibraries {
     return $pluginDir
 }
 
-# The GUID Betta publishes for a component (a pinned [GrasshopperMethod(Guid = ...)] or the signature hash),
+# The GUID Betta publishes for a component (a pinned [GrasshopperMethod(Guid = ...)] or the type|method hash),
 # read through Betta.Mcp's betta_describe in one stateless MCP request. $null if the component isn't found.
+# -WithAliases returns it followed by the hidden aliases saved files also open through (FormerNames, pre-0.8).
 function Get-BettaComponentGuid {
-    param([Parameter(Mandatory)][string]$McpExe, [Parameter(Mandatory)][string]$PluginFolder, [Parameter(Mandatory)][string]$Component)
+    param([Parameter(Mandatory)][string]$McpExe, [Parameter(Mandatory)][string]$PluginFolder, [Parameter(Mandatory)][string]$Component,
+        [switch]$WithAliases)
     $req = @{ jsonrpc = '2.0'; id = 1; method = 'tools/call'
         params = @{ name = 'betta_describe'; arguments = @{ name = $Component }; _meta = @{ 'io.modelcontextprotocol/protocolVersion' = '2026-07-28' } } }
     $r = Invoke-Native -FilePath $McpExe -StdinText (($req | ConvertTo-Json -Depth 6 -Compress) + "`n") -Environment @{ BETTA_PLUGIN_FOLDER = $PluginFolder } -TimeoutMinutes 1
     try {
         $line = @($r.Stdout -split "`n" | Where-Object { $_.Trim() })[0]
         $d = ($line | ConvertFrom-Json).result.content[0].text | ConvertFrom-Json
+        if ($d.found -and $WithAliases) {
+            return @([string]$d.descriptor.guid) + @($d.descriptor.formerGuids | ForEach-Object { [string]$_ }) +
+                @($d.descriptor.legacyGuid | Where-Object { $_ } | ForEach-Object { [string]$_ })
+        }
         if ($d.found) { return [string]$d.descriptor.guid }
     } catch { }
     return $null

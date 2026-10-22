@@ -61,7 +61,7 @@ if ($meta) {
     if ($meta.PSObject.Properties['skill_mode']) { Add ('- Skill mode (betta arm): {0}' -f $meta.skill_mode) }
     if ($meta.PSObject.Properties['git_commit'] -and $meta.git_commit) { Add ('- Repo commit (skill version): {0}' -f $meta.git_commit) }
     Add ('- Isolation flags: `{0}`' -f $meta.isolation_flags)
-    if ($meta.PSObject.Properties['mcp_arm'] -and @($meta.arms) -contains 'betta-guide-mcp') { Add ('- MCP arm: {0}' -f $meta.mcp_arm) }
+    if ($meta.PSObject.Properties['mcp_arm'] -and @($meta.arms | Where-Object { $_ -like '*-mcp' }).Count -gt 0) { Add ('- MCP arm: {0}' -f $meta.mcp_arm) }
     if ($meta.PSObject.Properties['merged']) { Add ('- Merged rows: {0}' -f $meta.merged) }
     if ($meta.extra_args) { Add ('- Extra args: `{0}`' -f ($meta.extra_args -join ' ')) }
     if ($meta.dry_run) { Add '- **DRY RUN: no agent was run; token columns are empty.**' }

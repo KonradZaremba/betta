@@ -49,8 +49,8 @@ lists accepted-but-degraded cases (unknown class return explodes into property
 outputs, unknown parameter type becomes a generic-object input, `IEnumerable<T>`
 is not a list pin, `Bitmap`/`Image` is one generic wire) while `ok` stays
 `true`. It understands `Task`/`ValueTask`/`IObservable<T>` returns, tuples of
-any arity, arrays and `params T[]`, `GH_Structure<T>` trees, `CancellationToken`
-and `IProgress<T>` (no pin), and `[GrasshopperSecret]` / `[GrasshopperTrigger]` /
+any arity, arrays and `params T[]`, `GH_Structure<T>` trees, `CancellationToken`,
+`IProgress<T>` and `IBettaReport` (no pin), and `[GrasshopperSecret]` / `[GrasshopperTrigger]` /
 `[GrasshopperMenuState]` parameters (no pin; attributes in the signature text
 are stripped).
 
@@ -61,7 +61,8 @@ the whole signature with `Type.FullName`, which for generic signatures includes
 assembly versions; `betta_describe` reports that value as `legacyGuid` (computed
 with this server's .NET 8 and the installed RhinoCommon), the aliases from
 `FormerNames` as `formerGuids`, and the GUIDs Rhino actually published from
-`Betta.log`, so a published component can be pinned to the one its saved files use. It resolves RhinoCommon and Grasshopper from the
+`Betta.log` and the rolled-over `Betta.log.old` (Betta keeps about the last 20 MB),
+so a published component can be pinned to the one its saved files use. It resolves RhinoCommon and Grasshopper from the
 Rhino 8 install.
 
 ## Protocol support

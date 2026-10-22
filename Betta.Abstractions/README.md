@@ -39,7 +39,7 @@ This package contains only the attributes and interfaces needed to author a Bett
        public string Concat(string l, string r, string s) => l + s + r;
    }
    ```
-4. Build. Drop the resulting DLL into `%AppData%\Grasshopper\Libraries\Betta\`. Restart Rhino — your components appear in the toolbar.
+4. Build. Drop the resulting DLL into `%AppData%\Grasshopper\Libraries\Betta\`. Betta picks it up while Rhino runs, and your components appear in the toolbar.
 
 ## Attribute reference
 
@@ -65,7 +65,7 @@ This package contains only the attributes and interfaces needed to author a Bett
 |---|---|
 | `IBettaCollection` | The opt-in marker for plugin types — required on the interface (or the class for the no-interface style). |
 | `IBettaValue` | Equivalent to `[GrasshopperOpaque]` on the class — marks a type as opaque so it passes through Betta wires as a single typed value. |
-| `IBettaModule` | Optional hook: implement `void ConfigureServices(IServiceCollection)` to register your plugin's own DI services. Betta discovers + invokes every module before `BuildServiceProvider` at startup. (Runtime-dropped plugins do not get a module pass.) |
+| `IBettaModule` | Optional hook: implement `void ConfigureServices(IServiceCollection)` to register your plugin's own DI services. Betta discovers + invokes every module before `BuildServiceProvider` at startup. (A plugin dropped in while Rhino runs gets its services created, but its module runs only after a restart.) |
 | `IBettaDefault` | Unwired opaque inputs get a fresh `new T()` instead of `null` when `T` implements this. |
 | `IBettaSerializable` | Round-trip the opaque value through `.gh` save/reload via `byte[] ToBytes()` / `void LoadFromBytes(byte[])`. |
 | `IBettaValidator` | Custom rule for `[GrasshopperValidation]`. Return null on success, error message on failure. |

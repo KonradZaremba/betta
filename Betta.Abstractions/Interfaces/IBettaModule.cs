@@ -20,10 +20,11 @@ namespace Betta.Interfaces
     ///
     /// <para>
     /// Runtime-loaded plugins (DLLs dropped into the Betta folder after Rhino
-    /// is already running) currently do not get DI: the ServiceProvider is
+    /// is already running) don't get a module pass: the ServiceProvider is
     /// built once at startup, and rebuilding it would orphan resolved
-    /// singletons. A plugin that needs services from a Betta collection must
-    /// therefore ship in the Betta folder before Rhino starts.
+    /// singletons. Betta still creates their services, with constructor
+    /// injection from that provider, but anything only this module registers
+    /// is available after Rhino restarts.
     /// </para>
     /// </summary>
     public interface IBettaModule

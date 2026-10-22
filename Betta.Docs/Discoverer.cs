@@ -92,6 +92,7 @@ internal static class Discoverer
                     var iconResource = (string?)NamedArg(attr, "IconResource");
 
                     var inputs = method.GetParameters()
+                        .Where(p => !HasNoPin(p))
                         .Select(p => BuildInput(p, xmlDocs))
                         .ToImmutableList();
 
@@ -128,6 +129,21 @@ internal static class Discoverer
         try { return pred(t); }
         catch (FileNotFoundException) { return false; }
         catch (TypeLoadException) { return false; }
+    }
+
+    /// <summary>
+    /// Parameters the runtime fills itself, with no input pin (ParamInjector.GenerateInputs):
+    /// CancellationToken, IProgress&lt;T&gt;, IBettaReport, and menu-state, secret and trigger parameters.
+    /// </summary>
+    private static bool HasNoPin(ParameterInfo p)
+    {
+        var t = p.ParameterType;
+        if (t.FullName is "System.Threading.CancellationToken" or "Betta.Interfaces.IBettaReport") return true;
+        if (t.IsGenericType && t.GetGenericTypeDefinition().FullName == "System.IProgress`1") return true;
+        return p.GetCustomAttributesData().Any(a => a.AttributeType.FullName is
+            "Betta.Attributes.GrasshopperMenuStateAttribute" or
+            "Betta.Attributes.GrasshopperSecretAttribute" or
+            "Betta.Attributes.GrasshopperTriggerAttribute");
     }
 
     private static InputInfo BuildInput(ParameterInfo p, XmlDocReader xmlDocs)
@@ -254,7 +270,27 @@ internal static class Discoverer
                 seen.Add(dll);
         }
 
+        // 4) RhinoCommon, Grasshopper and GH_IO from the Rhino 8 install. Plugins reference
+        //    them compile-only, so they are never next to the plugin; without them every
+        //    method with a Rhino type (Curve, Surface, List<Point3d>) was skipped.
+        foreach (var dll in RhinoAssemblies())
+            if (File.Exists(dll)) seen.Add(dll);
+
         return seen;
+    }
+
+    /// <summary>
+    /// Same lookup as Betta.Mcp: Rhino 8's System folder, or BETTA_RHINO_SYSTEM_FOLDER.
+    /// </summary>
+    private static IEnumerable<string> RhinoAssemblies()
+    {
+        var system = Environment.GetEnvironmentVariable("BETTA_RHINO_SYSTEM_FOLDER");
+        if (string.IsNullOrEmpty(system))
+            system = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Rhino 8", "System");
+        var grasshopper = Path.Combine(Path.GetDirectoryName(system) ?? system, "Plug-ins", "Grasshopper");
+        yield return Path.Combine(system, "RhinoCommon.dll");
+        yield return Path.Combine(grasshopper, "Grasshopper.dll");
+        yield return Path.Combine(grasshopper, "GH_IO.dll");
     }
 }
 

@@ -254,7 +254,7 @@ public class MyModule : IBettaModule
 }
 ```
 
-Betta discovers every `IBettaModule` in own + loaded plugin assemblies and calls `ConfigureServices` before `BuildServiceProvider`. A faulty module is logged but does not break startup. (Limitation: runtime-dropped plugins — hot-added after Rhino started — do not get a module pass.)
+Betta discovers every `IBettaModule` in own + loaded plugin assemblies and calls `ConfigureServices` before `BuildServiceProvider`. A faulty module is logged but does not break startup. A plugin dropped in while Rhino runs gets its services created, with constructor injection from the container, but its module runs only after a restart.
 
 ### Viewport preview & bake (`Betta.Preview` package)
 
@@ -413,7 +413,7 @@ BettaComponent (GH_Component)              generic; all proxies share one CLR ty
 ParamInjector                              inputs → Method.Invoke(service, args) → outputs
 ```
 
-Component GUIDs are deterministic — an MD5 of the method signature — so saved `.gh` files survive rebuilds and moving code between machines. Services resolve from a DI container built once in `Startup.PriorityLoad`, with logging injected automatically. Rename the display name freely; rename the *method, type, or a parameter* and the GUID changes (pin `Guid = "…"` to refactor without breaking saved files).
+Component GUIDs are deterministic, an MD5 of the type and method name, so saved `.gh` files survive rebuilds, parameter and output changes, and moving code between machines. Services resolve from a DI container built once in `Startup.PriorityLoad`, with logging injected automatically; a plugin dropped in later gets its service created the same way. Rename the display name freely; rename the *method or type* and list the old name in `FormerNames` (see [Saved files and component GUIDs](#saved-files-and-component-guids)).
 
 ## Layout
 
@@ -439,7 +439,7 @@ dotnet pack  Betta.Abstractions/Betta.Abstractions.csproj -c Release  # → ./ar
 
 ## Not yet supported
 
-Hot-reload of *replaced* plugins (Betta warns and asks for a restart), DI for plugins dropped in mid-session, a canvas LoadLibrary component, and a real settings panel — see [ROADMAP.md](ROADMAP.md).
+Hot-reload of *replaced* plugins (Betta warns and asks for a restart), `IBettaModule` for plugins dropped in mid-session, a canvas LoadLibrary component, and a real settings panel — see [ROADMAP.md](ROADMAP.md).
 
 ## License
 

@@ -12,9 +12,9 @@ namespace Betta.Docs;
 /// betta-docs has zero dependency on the Betta runtime DLL. Mirrors the rules
 /// documented in Betta/OutputPlanner.cs:
 ///   1. [GrasshopperOutput] on method or [return:] wins, indexed by Index.
-///   2. ValueTuple element names (TupleElementNamesAttribute).
+///   2. ValueTuple element names (TupleElementNamesAttribute), split into words.
 ///   3. Fallbacks: "Output" for single, "Output1..N" for tuples,
-///      property names for class returns.
+///      property names (split into words) for class returns.
 /// </summary>
 internal static class OutputPlanner
 {
@@ -28,6 +28,13 @@ internal static class OutputPlanner
         var outputType = method.ReturnType;
         if (outputType is null || outputType.FullName == "System.Void")
             return plans;
+
+        // Task<T> / ValueTask<T> / IObservable<T>: the outputs are T's, as in the runtime's
+        // ParamInjector.GenerateOutputs (async and streaming components).
+        if (outputType.IsGenericType &&
+            outputType.GetGenericTypeDefinition().FullName is "System.Threading.Tasks.Task`1"
+                or "System.Threading.Tasks.ValueTask`1" or "System.IObservable`1")
+            outputType = outputType.GetGenericArguments()[0];
 
         // Collect explicit [GrasshopperOutput] attrs (method + return parameter).
         var attrs = new List<CustomAttributeData>();
@@ -84,7 +91,7 @@ internal static class OutputPlanner
             for (int i = 0; i < tupleTypes.Length; i++)
             {
                 var a = AttrFor(i);
-                var elementName = (tupleNames is not null && i < tupleNames.Count) ? tupleNames[i] : null;
+                var elementName = (tupleNames is not null && i < tupleNames.Count) ? SplitWords(tupleNames[i]) : null;
                 var name = (string?)CtorOrNamed(a, "Name", 0) ?? elementName ?? $"Output{i + 1}";
                 var nick = (string?)NamedOnly(a, "NickName") ?? (string?)CtorOrNamed(a, "Name", 0) ?? elementName ?? $"Out{i + 1}";
                 var desc = (string?)CtorOrNamed(a, "Description", 1) ?? $"Method output {i + 1}";
@@ -107,7 +114,7 @@ internal static class OutputPlanner
             {
                 foreach (var prop in props)
                     plans.Add(new OutputInfo(
-                        prop.Name, prop.Name, $"Property: {prop.Name}",
+                        SplitWords(prop.Name), SplitWords(prop.Name), $"Property: {prop.Name}",
                         Discoverer.TypeDisplay(prop.PropertyType), IsList: false));
                 return plans;
             }
@@ -124,6 +131,33 @@ internal static class OutputPlanner
                 IsList: false));
             return plans;
         }
+    }
+
+    /// <summary>Mirrors Betta's OutputPlanner.SplitWords: "FlatCount" gives "Flat Count", "CSVPath" "CSV Path", "IDs" stays whole.</summary>
+    internal static string SplitWords(string identifier)
+    {
+        if (string.IsNullOrEmpty(identifier)) return identifier;
+        var sb = new System.Text.StringBuilder(identifier.Length + 4);
+        for (int i = 0; i < identifier.Length; i++)
+        {
+            char c = identifier[i];
+            if (c == '_')
+            {
+                if (sb.Length > 0 && sb[sb.Length - 1] != ' ') sb.Append(' ');
+                continue;
+            }
+            if (i > 0 && char.IsUpper(c) && sb.Length > 0 && sb[sb.Length - 1] != ' ')
+            {
+                char prev = identifier[i - 1];
+                bool next = i + 1 < identifier.Length && char.IsLower(identifier[i + 1]);
+                bool plural = next && identifier[i + 1] == 's' &&
+                              (i + 2 == identifier.Length || !char.IsLower(identifier[i + 2]));
+                if (char.IsLower(prev) || (char.IsUpper(prev) && next && !plural)) sb.Append(' ');
+            }
+            sb.Append(c);
+        }
+        var words = sb.ToString().Trim();
+        return words.Length == 0 ? identifier : char.ToUpperInvariant(words[0]) + words.Substring(1);
     }
 
     private static int GetNamedOrCtorIndex(CustomAttributeData a)

@@ -28,6 +28,9 @@ namespace TestBetta
         [GrasshopperOutput("Hi", "H", "Upper", Index = 1)]
         (double Min, double Max) OverriddenTuple(List<double> n);
 
+        [GrasshopperOutput("FlatCount", Index = 1)]
+        (List<bool> Flat, int FlatCount, string CSVPath) MultiWordTuple(List<double> n);
+
         List<int> Listy(int count);
 
         Stats AsClass(List<double> n);
@@ -37,6 +40,7 @@ namespace TestBetta
     {
         public double Mean { get; set; }
         public double Count { get; set; }
+        public double TotalArea { get; set; }
     }
 
     public class TestOutputNaming
@@ -105,9 +109,35 @@ namespace TestBetta
         public void ClassReturn_FansOutByProperty()
         {
             var plans = Plan(nameof(IOutputSamples.AsClass));
-            Assert.Equal(2, plans.Count);
+            Assert.Equal(3, plans.Count);
             Assert.Contains(plans, p => p.Name == "Mean");
             Assert.Contains(plans, p => p.Name == "Count");
+            Assert.Contains(plans, p => p.Name == "Total Area" && p.NickName == "Total Area");
+        }
+
+        [Fact]
+        public void Multi_word_tuple_names_get_spaces_unless_an_attribute_names_them()
+        {
+            var plans = Plan(nameof(IOutputSamples.MultiWordTuple));
+            Assert.Equal(new[] { "Flat", "FlatCount", "CSV Path" }, plans.Select(p => p.Name));
+            Assert.Equal("CSV Path", plans[2].NickName);
+        }
+
+        [Theory]
+        [InlineData("FlatCount", "Flat Count")]
+        [InlineData("SheetCount", "Sheet Count")]
+        [InlineData("CSVPath", "CSV Path")]
+        [InlineData("UCount", "U Count")]
+        [InlineData("PanelIDs", "Panel IDs")]
+        [InlineData("IDs", "IDs")]
+        [InlineData("CSV", "CSV")]
+        [InlineData("Point3d", "Point3d")]
+        [InlineData("totalArea", "Total Area")]
+        [InlineData("flat_count", "Flat count")]
+        [InlineData("Sum", "Sum")]
+        public void Identifiers_split_into_words(string identifier, string expected)
+        {
+            Assert.Equal(expected, OutputPlanner.SplitWords(identifier));
         }
     }
 }

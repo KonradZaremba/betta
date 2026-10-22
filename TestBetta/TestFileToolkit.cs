@@ -77,7 +77,7 @@ namespace TestBetta
             var plans = OutputPlanner.PlanOutputs(typeof(FolderState), null);
 
             var byName = plans.ToDictionary(p => p.Name);
-            Assert.True(byName[nameof(FolderState.AllPaths)].IsList, "AllPaths must be a list output.");
+            Assert.True(byName["All Paths"].IsList, "AllPaths must be a list output.");
             Assert.False(byName[nameof(FolderState.Changed)].IsList);
             Assert.False(byName[nameof(FolderState.Kind)].IsList);
             Assert.False(byName[nameof(FolderState.When)].IsList);

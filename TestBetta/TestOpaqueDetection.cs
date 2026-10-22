@@ -59,8 +59,8 @@ namespace TestBetta
         {
             var plans = Plan(nameof(IOpaqueSamples.Plain));
             Assert.Equal(2, plans.Count);
-            Assert.Contains(plans, p => p.Name == "NodeCount");
-            Assert.Contains(plans, p => p.Name == "EdgeCount");
+            Assert.Contains(plans, p => p.Name == "Node Count");
+            Assert.Contains(plans, p => p.Name == "Edge Count");
         }
 
         [Fact]

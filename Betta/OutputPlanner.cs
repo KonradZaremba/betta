@@ -111,7 +111,7 @@ namespace Betta
                 for (int i = 0; i < tupleTypes.Length; i++)
                 {
                     var a = AttrFor(i);
-                    var elementName = (tupleNames != null && i < tupleNames.Count) ? tupleNames[i] : null;
+                    var elementName = (tupleNames != null && i < tupleNames.Count) ? SplitWords(tupleNames[i]) : null;
                     var name = a?.Name ?? elementName ?? $"Output{i + 1}";
                     var nick = a?.NickName ?? a?.Name ?? elementName ?? $"Out{i + 1}";
                     var desc = a?.Description ?? $"Method output {i + 1}";
@@ -160,7 +160,8 @@ namespace Betta
                     var propType = prop.PropertyType;
                     bool isList = propType.IsGenericType &&
                                   propType.GetGenericTypeDefinition() == typeof(List<>);
-                    plans.Add(new OutputPlan(prop.Name, prop.Name, $"Property: {prop.Name}", propType, isList));
+                    var name = SplitWords(prop.Name);
+                    plans.Add(new OutputPlan(name, name, $"Property: {prop.Name}", propType, isList));
                 }
 
                 if (plans.Any())
@@ -173,6 +174,39 @@ namespace Betta
                 fb?.Name ?? "Output", fb?.NickName ?? fb?.Name ?? "Out",
                 fb?.Description ?? "Method output", outputType, false));
             return plans;
+        }
+
+        /// <summary>
+        /// A C# identifier as a Grasshopper display name. Tuple element and property names
+        /// can't hold spaces, so words are split where the case changes: "FlatCount" gives
+        /// "Flat Count", "CSVPath" "CSV Path", "UCount" "U Count"; "IDs" stays whole.
+        /// Underscores become spaces and the first letter is capitalised.
+        /// </summary>
+        internal static string SplitWords(string identifier)
+        {
+            if (string.IsNullOrEmpty(identifier)) return identifier;
+            var sb = new System.Text.StringBuilder(identifier.Length + 4);
+            for (int i = 0; i < identifier.Length; i++)
+            {
+                char c = identifier[i];
+                if (c == '_')
+                {
+                    if (sb.Length > 0 && sb[sb.Length - 1] != ' ') sb.Append(' ');
+                    continue;
+                }
+                if (i > 0 && char.IsUpper(c) && sb.Length > 0 && sb[sb.Length - 1] != ' ')
+                {
+                    char prev = identifier[i - 1];
+                    bool next = i + 1 < identifier.Length && char.IsLower(identifier[i + 1]);
+                    // "IDs": a plural s after an acronym belongs to it.
+                    bool plural = next && identifier[i + 1] == 's' &&
+                                  (i + 2 == identifier.Length || !char.IsLower(identifier[i + 2]));
+                    if (char.IsLower(prev) || (char.IsUpper(prev) && next && !plural)) sb.Append(' ');
+                }
+                sb.Append(c);
+            }
+            var words = sb.ToString().Trim();
+            return words.Length == 0 ? identifier : char.ToUpperInvariant(words[0]) + words.Substring(1);
         }
 
         public static bool IsSimpleType(Type type) =>

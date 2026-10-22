@@ -10,26 +10,26 @@
   </PropertyGroup>
 
   <!--
-    Consumes Betta.Abstractions as a NuGet PACKAGE (local pack feed), same as
-    the other samples. RhinoCommon is referenced compile-only (ExcludeAssets
-    "runtime") because Rhino provides it at load time — the plugin DLL ships
-    neither RhinoCommon nor Abstractions. Build flow:
+    Betta.Abstractions and Betta.Preview are PROJECT references (Private=false,
+    ExcludeAssets=runtime), like Betta.Files and Betta.OpaqueDemo, so the tour
+    always builds against the SDK in this repo; it used to consume a local
+    0.4.0 package and fell behind. RhinoCommon is referenced compile-only
+    because Rhino provides it at load time: the plugin DLL ships neither
+    RhinoCommon nor the Betta assemblies. A real plugin uses the packages.
 
-        dotnet pack Betta.Abstractions/Betta.Abstractions.csproj -c Release
-        dotnet build samples/Betta.Tour/Betta.Tour.csproj
-
-    Intentionally NOT part of Betta/Betta.sln (the solution builds
-    Betta.Abstractions as a project, which would shadow the package).
+        dotnet build samples/Betta.Tour/Betta.Tour.csproj   (deploys to Libraries\Betta)
   -->
-  <PropertyGroup>
-    <RestoreSources>$(RestoreSources);https://api.nuget.org/v3/index.json;$(MSBuildThisFileDirectory)..\..\artifacts</RestoreSources>
-  </PropertyGroup>
-
   <ItemGroup>
-    <PackageReference Include="Betta.Abstractions" Version="0.4.0" ExcludeAssets="runtime" />
-    <!-- Preview hook used by TourFeatures only; opt-in package — plugins that
-         don't draw in the viewport don't need it. -->
-    <PackageReference Include="Betta.Preview" Version="0.4.0" ExcludeAssets="runtime" />
+    <ProjectReference Include="..\..\Betta.Abstractions\Betta.Abstractions.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+    <!-- Preview hook used by TourFeatures only; opt-in, so plugins that don't
+         draw in the viewport don't need it. -->
+    <ProjectReference Include="..\..\Betta.Preview\Betta.Preview.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
     <PackageReference Include="RhinoCommon" Version="[8.0,8.27)" ExcludeAssets="runtime" />
     <PackageReference Include="Grasshopper" Version="[8.0,8.27)" ExcludeAssets="runtime" />
   </ItemGroup>

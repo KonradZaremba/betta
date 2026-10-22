@@ -14,26 +14,60 @@ namespace Betta.Services
     /// in %AppData%\Grasshopper\Libraries\Betta.log. Useful for post-mortem
     /// debugging: the log persists after Rhino closes, and tailing the file
     /// gives a clean stream without Rhino's own chatter mixed in.
+    /// Every solve logs at Debug, so once the file passes <see cref="DefaultMaxBytes"/>
+    /// it moves to Betta.log.old (replacing the previous one) and a fresh file starts.
     /// </summary>
     public sealed class FileLoggerProvider : ILoggerProvider
     {
+        internal const long DefaultMaxBytes = 10 * 1024 * 1024;
+
+        // The size is checked when a session starts and then every RollCheckInterval lines, not on every line.
+        internal const int RollCheckInterval = 1000;
+
         private static readonly object _fileLock = new();
+        private static int _writes;
         private readonly string _path;
+        private readonly long _maxBytes;
 
         public FileLoggerProvider() : this(DefaultPath()) { }
 
-        public FileLoggerProvider(string path)
+        public FileLoggerProvider(string path) : this(path, DefaultMaxBytes) { }
+
+        internal FileLoggerProvider(string path, long maxBytes)
         {
             _path = path;
+            _maxBytes = maxBytes;
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.AppendAllText(_path,
-                $"--- Betta session started {DateTime.Now:yyyy-MM-dd HH:mm:ss} ---{Environment.NewLine}");
+            Append(_path, _maxBytes,
+                $"--- Betta session started {DateTime.Now:yyyy-MM-dd HH:mm:ss} ---{Environment.NewLine}", checkSize: true);
         }
 
         public ILogger CreateLogger(string categoryName) =>
-            new FileLogger(_path, _fileLock, ShortName(categoryName));
+            new FileLogger(_path, _maxBytes, ShortName(categoryName));
 
         public void Dispose() { }
+
+        internal static void Append(string path, long maxBytes, string text, bool checkSize)
+        {
+            lock (_fileLock)
+            {
+                if (checkSize || ++_writes % RollCheckInterval == 0) RollIfFull(path, maxBytes);
+                // A log line is never worth failing a solve over: another Rhino, or a
+                // tool holding the file, makes the append throw.
+                try { File.AppendAllText(path, text); }
+                catch (IOException) { }
+            }
+        }
+
+        private static void RollIfFull(string path, long maxBytes)
+        {
+            try
+            {
+                var file = new FileInfo(path);
+                if (file.Exists && file.Length >= maxBytes) File.Move(path, path + ".old", overwrite: true);
+            }
+            catch (IOException) { } // held open without delete sharing: try again at the next check
+        }
 
         private static string ShortName(string category)
         {
@@ -52,13 +86,13 @@ namespace Betta.Services
     internal sealed class FileLogger : ILogger
     {
         private readonly string _path;
-        private readonly object _lock;
+        private readonly long _maxBytes;
         private readonly string _category;
 
-        public FileLogger(string path, object fileLock, string category)
+        public FileLogger(string path, long maxBytes, string category)
         {
             _path = path;
-            _lock = fileLock;
+            _maxBytes = maxBytes;
             _category = category;
         }
 
@@ -75,10 +109,7 @@ namespace Betta.Services
             var line = $"{DateTime.Now:HH:mm:ss.fff} [{Label(logLevel)}] {_category}: {message}";
             if (exception != null) line += Environment.NewLine + exception;
 
-            lock (_lock)
-            {
-                File.AppendAllText(_path, line + Environment.NewLine);
-            }
+            FileLoggerProvider.Append(_path, _maxBytes, line + Environment.NewLine, checkSize: false);
         }
 
         private static string Label(LogLevel level) => level switch

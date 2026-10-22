@@ -51,8 +51,10 @@ namespace Betta
         public static List<OutputPlan> PlanOutputs(Type outputType, MethodInfo method)
         {
             var plans = new List<OutputPlan>();
-            if (outputType == null || outputType == typeof(void))
-                return plans; // no outputs for void methods
+            if (outputType == null || outputType == typeof(void) ||
+                outputType == typeof(System.Threading.Tasks.Task) ||
+                outputType == typeof(System.Threading.Tasks.ValueTask))
+                return plans; // no outputs for void / non-generic Task / ValueTask methods
 
             // Explicit [GrasshopperOutput] attributes (method-level + return-value),
             // resolved by Index. AllowMultiple lets a tuple method name each element.

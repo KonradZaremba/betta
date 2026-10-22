@@ -417,7 +417,11 @@ public sealed class BettaValidateSignatureTool : ITool
         for (int guard = 0; guard < 4; guard++)
         {
             var bare = StripNamespace(t);
-            if (bare is "Task" or "ValueTask") return; // no result value
+            if (bare is "Task" or "ValueTask")
+            {
+                c.Note($"Return type '{bare}': runs asynchronously, no outputs.");
+                return;
+            }
             if (TryGetGeneric(t, out var name, out var args) && args.Count == 1
                 && name is "Task" or "ValueTask" or "IObservable")
             {

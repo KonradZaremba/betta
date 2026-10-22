@@ -89,6 +89,7 @@ namespace Betta
             // Task<T> / ValueTask<T> / IObservable<T>: unwrap so the output
             // param(s) reflect T, not the wrapper. The runtime's async and
             // streaming paths both hand the unwrapped T to SetOutputDataAdvanced.
+            // Non-generic Task / ValueTask pass through: OutputPlanner plans no outputs for them.
             if (declared != null && declared.IsGenericType)
             {
                 var gt = declared.GetGenericTypeDefinition();

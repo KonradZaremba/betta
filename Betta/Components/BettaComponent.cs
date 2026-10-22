@@ -127,9 +127,23 @@ namespace Betta.Components
 
         private static bool IsTaskType(Type t)
         {
-            if (t == null || !t.IsGenericType) return false;
+            if (t == null) return false;
+            // Non-generic Task / ValueTask: async, but nothing to output (like void).
+            if (t == typeof(Task) || t == typeof(ValueTask)) return true;
+            if (!t.IsGenericType) return false;
             var gt = t.GetGenericTypeDefinition();
             return gt == typeof(Task<>) || gt == typeof(ValueTask<>);
+        }
+
+        /// <summary>
+        /// The value a completed task produced. Null for non-generic Task/ValueTask:
+        /// an async Task method's runtime instance is a Task&lt;VoidTaskResult&gt;, so
+        /// the declared return type (not the instance) decides whether there is a result.
+        /// </summary>
+        internal static object TaskResultOf(Type declaredReturnType, Task completed)
+        {
+            if (declaredReturnType == typeof(Task) || declaredReturnType == typeof(ValueTask)) return null;
+            return completed.GetType().GetProperty("Result")?.GetValue(completed);
         }
 
         private static bool IsObservableType(Type t) =>
@@ -539,10 +553,9 @@ namespace Betta.Components
 
             task.ContinueWith(t =>
             {
-                _asyncResults.ClearInFlight(key);
-
                 if (t.IsFaulted)
                 {
+                    _asyncResults.ClearInFlight(key);
                     Rhino.RhinoApp.InvokeOnUiThread(new Action(() =>
                     {
                         AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
@@ -553,9 +566,18 @@ namespace Betta.Components
                     return;
                 }
 
+                if (t.IsCanceled)
+                {
+                    // Superseded by a newer solve (or cancelled by the method): no result to deliver.
+                    _asyncResults.ClearInFlight(key);
+                    return;
+                }
+
                 // Task<T>.Result via reflection (can't cast the non-generic Task).
-                var resultProp = t.GetType().GetProperty("Result");
-                _asyncResults.Store(key, new ReportedResult(resultProp?.GetValue(t), launchReport));
+                _asyncResults.Store(key, new ReportedResult(
+                    TaskResultOf(_paramInjector.Method.ReturnType, t), launchReport));
+                // After Store: a solve landing between the two must see a hit, not a miss that relaunches the task.
+                _asyncResults.ClearInFlight(key);
 
                 Rhino.RhinoApp.InvokeOnUiThread(new Action(() => ExpireSolution(true)));
             }, TaskContinuationOptions.ExecuteSynchronously);

@@ -53,6 +53,18 @@ public class ValidateSignatureTests
         Assert.Equal(new[] { "n" }, wired);
     }
 
+    [Theory]
+    [InlineData("Task Run(int n)", "Task")]
+    [InlineData("ValueTask Fire(int x)", "ValueTask")]
+    [InlineData("System.Threading.Tasks.Task Go(CancellationToken ct)", "Task")]
+    public async Task Non_generic_task_return_is_async_with_no_outputs(string sig, string bare)
+    {
+        var r = await Validate(sig);
+        Assert.True(r.GetProperty("ok").GetBoolean());
+        Assert.Empty(Strings(r.GetProperty("problems")));
+        Assert.Contains(Strings(r.GetProperty("notes")), n => n.Contains(bare) && n.Contains("runs asynchronously, no outputs"));
+    }
+
     [Fact]
     public async Task Nine_tuple_return_parses_every_element()
     {

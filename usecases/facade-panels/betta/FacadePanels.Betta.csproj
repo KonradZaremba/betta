@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The facade library on Betta. Copy bin\...\FacadePanels.Betta.dll to
+       %AppData%\Grasshopper\Libraries\Betta\ (Betta 0.8 installed) to use it. -->
+  <PropertyGroup>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IBettaReport is new in Betta.Abstractions 0.8. Until 0.8.0 is on nuget.org this builds against the
+         repo's copy; afterwards: <PackageReference Include="Betta.Abstractions" Version="0.8.0" ExcludeAssets="runtime" /> -->
+    <ProjectReference Include="..\..\..\Betta.Abstractions\Betta.Abstractions.csproj" Private="false" />
+    <PackageReference Include="RhinoCommon" Version="8.0.23304.9001" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>

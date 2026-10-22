@@ -14,6 +14,12 @@ It answers questions like:
 
 without the user pasting `Betta.log` or DLL paths into chat.
 
+Use it to debug and to change published plugins safely: why a saved `.gh` shows
+missing components, which GUIDs a component has had (to pin one, or to list a
+former name before a rename), and why a plugin failed to register. Writing new
+components doesn't need it; the template's agent guide and the `betta-plugin`
+skill cover that.
+
 ## What it does
 
 - **Reads the plugin folder** at `%AppData%/Grasshopper/Libraries/Betta/`
@@ -21,8 +27,9 @@ without the user pasting `Betta.log` or DLL paths into chat.
   Rhino installed.
 - **Tails the Betta log** at `%AppData%/Grasshopper/Libraries/Betta.log`.
 - **Recomputes the deterministic GUID** for each discovered component using
-  the exact same MD5-over-signature scheme `ComponentDescriptor` uses, so the
-  GUIDs Betta.Mcp reports match the ones a saved `.gh` is bound to.
+  the exact same scheme `ComponentDescriptor` uses (MD5 of the type and method
+  name; pinned GUIDs, `FormerNames` and the pre-0.8 legacy GUID included), so
+  the GUIDs Betta.Mcp reports match the ones a saved `.gh` is bound to.
 
 ## Tools
 
@@ -30,8 +37,8 @@ without the user pasting `Betta.log` or DLL paths into chat.
 | --- | --- | --- |
 | `betta_status` | `{}` | List of DLLs, each with `{file, size, mtime, isBettaPlugin, collectionCount, methodCount}`. |
 | `betta_recent_logs` | `{lines?: int}` (default 50) | The last N lines of `Betta.log`. |
-| `betta_describe` | `{name: string}` | The descriptor for a component by display name (case-insensitive), including `guidPinned`, `guidVersionDependent`, `versionedAssemblies` and `loggedGuids` (every GUID Betta.log recorded for it, oldest first). |
-| `betta_validate_signature` | `{signature: string, opaqueTypes?: string[]}` | Heuristic check of a method signature against what the Betta runtime accepts: `{ok, parsed, problems, notes, guidAdvice}`. |
+| `betta_describe` | `{name: string}` | The descriptor for a component by display name (case-insensitive), including `guidPinned`, `legacyGuid` (the pre-0.8 GUID when it differs), `formerGuids` (aliases from `FormerNames`) and `loggedGuids` (every GUID Betta.log recorded for it, oldest first). |
+| `betta_validate_signature` | `{signature: string, opaqueTypes?: string[]}` | Heuristic check of a method signature against what the Betta runtime accepts: `{ok, parsed, problems, notes}`. |
 
 All four tools are read-only (`annotations.readOnlyHint: true`).
 
@@ -48,15 +55,14 @@ and `IProgress<T>` (no pin), and `[GrasshopperSecret]` / `[GrasshopperTrigger]` 
 are stripped).
 
 Component GUIDs: unless pinned with `[GrasshopperMethod(Guid = ...)]`, a GUID is
-an MD5 of the signature, and `Type.FullName` of a generic type includes its type
-arguments' assembly versions. So with `List<T>`, a tuple, `Task<T>`,
-`IObservable<T>` or `IProgress<T>` in the signature the GUID changes when the
-plugin's version, RhinoCommon (every Rhino update) or .NET changes, and saved
-`.gh` files lose the component. `betta_validate_signature` returns `guidAdvice`
-for such signatures. `betta_describe` names the versions a derived GUID depends
-on and lists the GUIDs Betta has actually published (from `Betta.log`), so you
-can pin the one your saved files use. It resolves RhinoCommon and Grasshopper
-from the Rhino 8 install, so its value matches Rhino's when Rhino runs on .NET 8.
+an MD5 of the type and method name (overloaded method names add the parameters
+and return type), exactly as Betta 0.8 computes it. Before 0.8 the hash covered
+the whole signature with `Type.FullName`, which for generic signatures includes
+assembly versions; `betta_describe` reports that value as `legacyGuid` (computed
+with this server's .NET 8 and the installed RhinoCommon), the aliases from
+`FormerNames` as `formerGuids`, and the GUIDs Rhino actually published from
+`Betta.log`, so a published component can be pinned to the one its saved files use. It resolves RhinoCommon and Grasshopper from the
+Rhino 8 install.
 
 ## Protocol support
 

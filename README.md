@@ -37,7 +37,7 @@
 
 Every Grasshopper component is the same process. Subclass `GH_Component`. Hand-register each input and output. Invent a stable GUID. Draw a 24×24 icon. Marshal types in and out of `SolveInstance`. That's forty lines of plumbing before you write the one line you actually came for.
 
-**Write your logic. Betta does the rest.** Decorate a plain C# method with an attribute — Betta generates the GUID, inputs, outputs and an icon, a real component you can use on the canvas. It's the idea behind Dynamo's *ZeroTouch*, brought to Grasshopper: **put a DLL in, get nodes out.**
+**Write your logic. Betta does the rest.** Decorate a plain C# method with an attribute — Betta generates a stable GUID, inputs, outputs and an icon, a real component you can use on the canvas. It's the idea behind Dynamo's *ZeroTouch*, brought to Grasshopper: **put a DLL in, get nodes out.**
 
 ```csharp
 [GrasshopperCollection("Curve", "Analysis")]
@@ -52,7 +52,7 @@ public class CurveTools : IBettaCollection
 }
 ```
 
-That's a ribbon tab, a component, and all its ports — done. No `GH_Component`, no `RegisterInputParams`, no `SolveInstance`, no GUID until you publish.
+That's a ribbon tab, a component, and all its ports — done. No `GH_Component`, no `RegisterInputParams`, no `SolveInstance`, no GUID to babysit.
 
 <details>
 <summary><b>👉 The same <i>single</i> component, hand-written the usual way</b></summary>
@@ -96,9 +96,17 @@ And every component wears the same betta silhouette, so the family reads as one 
 
 Betta can be used for AI-assisted authoring — the repo ships a Claude Code skill and a `CLAUDE.md` that hand a coding agent the contract: the attributes, the return-type → output mapping, the deploy path, the GUID-stability gotchas. Drop any agent session into this repo and it knows how to add a component without being told twice.
 
-Sure, an LLM can author a full `GH_Component` from scratch — and it usually does, after a few rounds of fixing the GUID, the param-access modes, and the icon plumbing. With Betta the agent only writes the function body; everything around it is generated deterministically at runtime. Projects created with `dotnet new bettaplugin-*` include a short agent guide (`CLAUDE.md` / `AGENTS.md`). In a [benchmark](bench/tokens/RESULTS.md) of headless Claude Code sessions with that guide, across seven tasks from one small component to ~100-line algorithms, agents wrote about a third less code than for the hand-written `GH_Component` equivalent (0.64x) at about the same cost (1.03x), and 0.64x the cost for a five-component request. The guide has them pin a GUID on components with generic signatures, so saved files survive plugin, Rhino and .NET updates; that rule costs a few turns, and making derived GUIDs version-independent (on the [roadmap](ROADMAP.md)) would remove it. Refactors are where tooling matters: renaming a parameter changes a derived GUID, and agents can't work out the old one on their own (0 of 18 refactors kept it). With Betta.Mcp attached they look it up and pin it: 9 of 9 kept saved files working, at about 0.95x the cost of the hand-written refactor.
+Sure, an LLM can author a full `GH_Component` from scratch — and it usually does, after a few rounds of fixing the GUID, the param-access modes, and the icon plumbing. With Betta the agent only writes the function body; everything around it is generated deterministically at runtime. Projects created with `dotnet new bettaplugin-*` include a short agent guide (`CLAUDE.md` / `AGENTS.md`). In a [benchmark](bench/tokens/RESULTS.md) of headless Claude Code sessions with that guide, across seven tasks from one small component to ~100-line algorithms, agents wrote 40% less code than for the hand-written `GH_Component` equivalent (0.59x) at about four-fifths of the cost (0.83x over eight tasks), and half the cost for a five-component request (0.51x). Changes keep saved files working: a component's GUID comes from its class and method name, so adding, renaming and retyping inputs and outputs keeps it, and renaming the method or class takes one `FormerNames` entry with the old name. All 6 benchmark refactors and renames kept saved files working without any extra tool, at about the cost of doing the same to a hand-written component (0.95x and 1.04x).
 
-**Betta.Mcp** gives any MCP client (Claude Code, Claude Desktop, Cursor) live answers instead of guesses: check a method signature before writing it, look up a published component's GUID and params, list what's loaded, and tail `Betta.log` when a plugin fails to register. It reads plugin DLLs without executing them.
+For a whole library, see the [facade panels use case](usecases/facade-panels/README.md): eight components from one brief, with a typed panel object, background nesting and file output, vibe-coded from an empty project both ways. With Betta it took about half the cost (0.54x) and half the code (0.47x), and scored better in code review. Both libraries are in the repo.
+
+**Betta.Mcp** is for when something goes wrong, or before you change a published plugin. It gives any MCP client (Claude Code, Claude Desktop, Cursor) live answers:
+- why a saved file shows missing components;
+- which GUIDs a component has had, to pin one or list a former name;
+- what's loaded;
+- why a plugin failed to register (it tails `Betta.log`).
+
+It reads plugin DLLs without executing them. Writing new components doesn't need it: the agent guide and the skill cover that, and in the facade use case agents never called it.
 
 ```bash
 dotnet tool install --global Betta.Mcp
@@ -153,15 +161,54 @@ If a class implements a marked interface, the interface wins (no double registra
 | `[GrasshopperMethod(name)]` | method | Publishes the method as a component. Also: `NickName`, `Description`, `Category`, `SubCategory`, `IconResource`, `Guid`, `Enabled`. |
 | `[GrasshopperParameter(name, …)]` | parameter | Input display name/nickname/description. `List<T>` → list input automatically. `DefaultValue = …` seeds unwired sockets. |
 
-### Saved files: pin the GUID of a published component
+### Saved files and component GUIDs
 
-A saved `.gh` file finds each component by its GUID. Betta derives it from the method's signature unless you pin one:
+A saved `.gh` file finds each component by its GUID. Betta derives it from the class and method name, and from nothing else: not the parameters, not your plugin's version, Rhino's or .NET's. So, as with a hand-written `GH_Component`, you can add, rename and retype inputs and outputs, and it stays the same across releases and updates. Add new inputs and outputs after the existing ones: saved files reconnect wires by position. The GUID changes when you rename the method or its class, or move the method to another class. List the old name and saved files keep working:
 
 ```csharp
-[GrasshopperMethod("Watch Folder", Guid = "496ff8ba-9cd2-d735-5486-1db5a0d655f7")]
+[GrasshopperMethod("Map Range", FormerNames = new[] { "Remap" })]          // renamed method
+[GrasshopperMethod("Map Range", FormerNames = new[] { "MyPlugin.IMathPack.Remap" })]   // moved from another type
+[GrasshopperCollection("Bench", "Mapping", FormerNames = new[] { "MyPlugin.IMathPack" })]   // renamed type
 ```
 
-A derived GUID changes when you rename the method, its type or a parameter, or reorder or retype a parameter. With a generic type in the signature (`List<T>`, a tuple, `Task<T>`, `IObservable<T>`) it also changes when your plugin's version, Rhino or .NET updates, because .NET writes those assembly versions into the type's name. So pin the GUID of every component you publish, using the value its saved files already use: `betta_describe` in [Betta.Mcp](#ai-ready) shows it, along with every GUID Betta has logged for that component. Version-independent derived GUIDs are on the [roadmap](ROADMAP.md).
+Betta registers each old GUID as a hidden alias, so files saved under the old name open and take the current GUID when saved again.
+
+To fix a component's GUID for good, set `Guid`. That's how to port a hand-written `GH_Component` library: give each method its old component's `ComponentGuid`, and existing `.gh` files open the Betta version.
+
+```csharp
+[GrasshopperMethod("Remap", Guid = "8b18f440-198b-0ca5-ac87-0a05f9815894")]
+```
+
+Two methods with the same name on one class (overloads) also hash their parameters and return type, to tell them apart. So adding an overload changes the GUID of the method that had the name first. List its own name on it to keep its saved files, or better, give component methods distinct names:
+
+```csharp
+[GrasshopperMethod("Scale Number", FormerNames = new[] { "Scale" })]   // was the only Scale
+public double Scale(double x, double factor) => x * factor;
+
+[GrasshopperMethod("Scale List")]                                       // the new overload
+public List<double> Scale(List<double> xs, double factor) => xs;
+```
+
+What a change does to saved files:
+
+| Change | Saved `.gh` files |
+|---|---|
+| Name, nickname, description, category, subcategory, icon | keep working |
+| Add inputs or outputs after the existing ones; rename, retype or remove the last ones | keep working |
+| Rename or move an opaque class (its wire lives inside the components) | keep working |
+| New plugin release, Rhino update, .NET version | keep working |
+| Reorder inputs or outputs, or remove one in the middle | open, but wires reconnect **by position**: check them |
+| Change an input's type | open; old wired data that no longer converts shows an error on that input |
+| Rename the method, rename its class or namespace, move it to another class | missing, unless you list the old name in `FormerNames` |
+| Add an overload (a second method with the same name) | the first one goes missing, unless it lists its own name in `FormerNames` |
+| Change a pinned `Guid`, or remove the component | missing |
+
+Before 0.8 the GUID covered the whole signature, so any parameter change broke saved files, and a generic type in it (`List<T>`, a tuple, `Task<T>`) added assembly versions, so it also changed with plugin releases and Rhino updates. 0.8 registers that old GUID as a hidden alias: a 0.7 file still opens and takes the new GUID the next time it's saved (with a generic signature, only if it was saved with the same plugin, Rhino and .NET versions).
+
+**Upgrading from 0.7 changes every GUID once.** Three things to do:
+- **Upgrade a team together.** Files saved with 0.8 show missing components in Betta 0.7.
+- **Pin the generic components if your users' files matter.** Give each component with a generic signature the GUID of your last 0.7 release, with `[GrasshopperMethod(Guid = "…")]`. Betta.Mcp's `betta_describe` lists the GUIDs Betta logged for it. The full list is in the [changelog](CHANGELOG.md).
+- **Add new inputs at the end.** Since the GUID no longer changes with the parameters, reordering inputs rewires old files without an error, just as with a hand-written `GH_Component`.
 
 ### Outputs are inferred from the return type
 
@@ -169,7 +216,7 @@ A derived GUID changes when you rename the method, its type or a parameter, or r
 |---|---|
 | primitive / Rhino geometry | one output |
 | `List<T>` | one list output |
-| `ValueTuple` | one per element (named tuple → named outputs) |
+| `ValueTuple` | one per element (named tuple → named outputs; `FlatCount` shows as "Flat Count") |
 | **plain** custom class | one per public property |
 | **opaque** class (`[GrasshopperOpaque]` / `IBettaValue`) | **one typed wire** — Betta auto-generates `Param_BettaGoo<T>` |
 | `List<T>` of opaque `T` | one typed list wire |
@@ -340,7 +387,7 @@ Off by default. Enable via **Betta → Trusted publishers…** to pick between `
 
 - **Async** (`Task<T>` / `ValueTask<T>` returns) — non-blocking solve, bounded LRU cache with in-flight dedupe.
 - **Hot-reload** — when you drop a replaced DLL into the Betta folder mid-session, Betta now writes a visible warning to the Rhino command line telling you to restart. (True ALC-based unload is roadmap.)
-- **`Betta.Generators`** (preview) — Roslyn source generator that emits a `BettaPluginBootstrap` descriptor manifest; when a plugin carries one, Betta uses it instead of the reflection scan at load. Also reports `BETTA001`/`BETTA010` diagnostics for unsupported parameter types and mismatched names. Optional — reflection works without it.
+- **`Betta.Generators`** (preview) — Roslyn source generator that emits a `BettaPluginBootstrap` descriptor manifest; when a plugin carries one, Betta uses it instead of the reflection scan at load. Also reports `BETTA001`/`BETTA011` diagnostics for unsupported parameter types and overloaded component methods. Optional — reflection works without it.
 
 ## A fish per component
 

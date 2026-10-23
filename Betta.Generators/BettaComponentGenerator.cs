@@ -7,8 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
+using Betta.Guids;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -509,35 +509,23 @@ namespace Betta.Generators
         internal static (Guid Guid, string Input) ComputeMethodGuidWithInput(string serviceFullName, string methodName,
             IReadOnlyList<ParamModel> parameters, string returnFullName, bool overloaded)
         {
-            var input = serviceFullName + "|" + methodName;
-            if (overloaded)
-                input += "|" + string.Join(",", parameters.Select(p => p.TypeFullName + " " + p.Name)) + "|" + returnFullName;
-            return (Md5(input), input);
+            var input = overloaded
+                ? GuidScheme.SignatureInput(serviceFullName, methodName,
+                    parameters.Select(p => p.TypeFullName + " " + p.Name), returnFullName)
+                : GuidScheme.NameInput(serviceFullName, methodName);
+            return (GuidScheme.Md5(input), input);
         }
 
         /// <summary>
-        /// Reproduces <c>ComponentDescriptor.ComputeFormerGuids</c>: the <c>Type|Method</c> hashes
+        /// The <c>Type|Method</c> hashes (<see cref="GuidScheme.FormerInputs"/>, shared with the runtime)
         /// of the names in FormerNames on <c>[GrasshopperMethod]</c> (a method name, or
         /// <c>Namespace.Type.Method</c>) and <c>[GrasshopperCollection]</c> (a full type name).
         /// </summary>
         internal static Guid[] ComputeFormerGuids(string serviceFullName, string methodName, bool overloaded,
             IEnumerable<string> formerMethodNames, IEnumerable<string> formerTypeNames)
         {
-            var methodNames = formerMethodNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
-            var typeNames = new[] { serviceFullName }.Concat(formerTypeNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()));
-            var names = new[] { methodName }.Concat(methodNames.Where(n => n.IndexOf('.') < 0)).ToList();
-
-            var inputs = typeNames.SelectMany(t => names.Select(m => t + "|" + m))
-                .Concat(methodNames.Where(n => n.IndexOf('.') >= 0).Select(n => n.Substring(0, n.LastIndexOf('.')) + "|" + n.Substring(n.LastIndexOf('.') + 1)));
-            var current = serviceFullName + "|" + methodName;
-            var keepCurrent = overloaded && methodNames.Contains(methodName);
-            return inputs.Where(i => keepCurrent || i != current).Distinct().Select(Md5).ToArray();
-        }
-
-        private static Guid Md5(string input)
-        {
-            using var md5 = MD5.Create();
-            return new Guid(md5.ComputeHash(Encoding.UTF8.GetBytes(input)));
+            return GuidScheme.FormerInputs(serviceFullName, methodName, overloaded, formerMethodNames, formerTypeNames)
+                .Select(GuidScheme.Md5).ToArray();
         }
 
         // ---- Emit ---------------------------------------------------------

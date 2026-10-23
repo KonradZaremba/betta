@@ -15,6 +15,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The GUID formula, shared with the source generator and Betta.Mcp. -->
+    <Compile Include="..\Betta.Generators\GuidScheme.cs" Link="Services\GuidScheme.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Betta.Abstractions\Betta.Abstractions.csproj" />
   </ItemGroup>
 

@@ -4,8 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
+using Betta.Guids;
 
 namespace Betta.Mcp.Inspection;
 
@@ -236,7 +235,7 @@ public sealed class PluginInspector : IDisposable
                         d.Guid = PublishedGuid(t, m, named, overloaded).ToString();
                         if (!d.GuidPinned)
                         {
-                            var legacy = SignatureGuid(t, m, x => x.FullName).ToString();
+                            var legacy = GuidScheme.LegacyGuid(t, m).ToString();
                             if (legacy != d.Guid) d.LegacyGuid = legacy;
                         }
                         d.FormerGuids = FormerGuids(t, m, NamedStrings(named, "FormerNames"), ReadCollectionFormerNames(t), overloaded)
@@ -301,8 +300,8 @@ public sealed class PluginInspector : IDisposable
                 var overloaded = IsOverloaded(t, m);
                 try
                 {
-                    result.Add(new Betta.Lock.LockComponent(StableTypeName(t), m.Name, overloaded,
-                        m.GetParameters().Select(p => StableTypeName(p.ParameterType)).ToArray(),
+                    result.Add(new Betta.Lock.LockComponent(GuidScheme.StableTypeName(t), m.Name, overloaded,
+                        m.GetParameters().Select(p => GuidScheme.StableTypeName(p.ParameterType)).ToArray(),
                         PublishedGuid(t, m, named, overloaded),
                         FormerGuids(t, m, NamedStrings(named, "FormerNames"), ReadCollectionFormerNames(t), overloaded).ToList(),
                         NamedBool(named, "Enabled") ?? true));
@@ -319,12 +318,11 @@ public sealed class PluginInspector : IDisposable
     /// <summary>The GUID Betta publishes: <c>[GrasshopperMethod(Guid = …)]</c> when pinned, else derived as <c>ComponentDescriptor</c> does.</summary>
     private static Guid PublishedGuid(Type t, MethodInfo m, IReadOnlyDictionary<string, object?> named, bool overloaded) =>
         System.Guid.TryParse(NamedString(named, "Guid"), out var pinned) ? pinned
-        : overloaded ? SignatureGuid(t, m, StableTypeName)
-        : Md5Guid($"{StableTypeName(t)}|{m.Name}");
+        : GuidScheme.MethodGuid(t, m, overloaded);
 
     // Disabled methods count, as in ComponentDescriptor, so toggling Enabled changes no GUID.
     private static bool IsOverloaded(Type t, MethodInfo m) =>
-        t.GetMethods().Count(o => o.Name == m.Name && TryGetMethodAttribute(o, out _)) > 1;
+        GuidScheme.IsOverloaded(t, m, o => TryGetMethodAttribute(o, out _));
 
     /// <summary>
     /// True when the DLL references Betta.Abstractions, read from its metadata without loading it.
@@ -453,36 +451,11 @@ public sealed class PluginInspector : IDisposable
         return n;
     }
 
-    /// <summary>
-    /// Mirrors <c>ComponentDescriptor</c>'s signature hash: overloads use it with
-    /// <see cref="StableTypeName"/>, <c>LegacyGuidFromMethod</c> with <c>Type.FullName</c>.
-    /// Every other method hashes <c>Type|Method</c> only, so the GUIDs the MCP server
-    /// reports match what Betta publishes.
-    /// </summary>
-    private static Guid SignatureGuid(Type serviceType, MethodInfo m, Func<Type, string?> typeName)
-    {
-        var paramSig = string.Join(",", m.GetParameters().Select(p => typeName(p.ParameterType) + " " + p.Name));
-        return Md5Guid($"{serviceType.FullName}|{m.Name}|{paramSig}|{typeName(m.ReturnType)}");
-    }
-
-    /// <summary>
-    /// Mirrors <c>ComponentDescriptor.FormerGuids</c>: <c>Type|Method</c> hashes for the earlier
-    /// method names (or <c>"Namespace.Type.Method"</c> for a moved method) and earlier type names. An overload
-    /// that lists its own name gets back the name-only GUID it had before the overload was added.
-    /// </summary>
+    /// <summary>The GUIDs a method had under its FormerNames, hashed as <c>ComponentDescriptor</c> does.</summary>
     private static IEnumerable<Guid> FormerGuids(Type serviceType, MethodInfo m, string[] formerMethodNames, string[] formerTypeNames,
-        bool overloaded)
-    {
-        var methodNames = formerMethodNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
-        var types = new[] { StableTypeName(serviceType) }
-            .Concat(formerTypeNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()));
-        var names = new[] { m.Name }.Concat(methodNames.Where(n => !n.Contains('.'))).ToList();
-        var current = $"{StableTypeName(serviceType)}|{m.Name}";
-        var keepCurrent = overloaded && methodNames.Contains(m.Name);
-        return types.SelectMany(t => names.Select(n => $"{t}|{n}"))
-            .Concat(methodNames.Where(n => n.Contains('.')).Select(n => $"{n[..n.LastIndexOf('.')]}|{n[(n.LastIndexOf('.') + 1)..]}"))
-            .Where(i => keepCurrent || i != current).Distinct().Select(Md5Guid);
-    }
+        bool overloaded) =>
+        GuidScheme.FormerInputs(GuidScheme.StableTypeName(serviceType), m.Name, overloaded, formerMethodNames, formerTypeNames)
+            .Select(GuidScheme.Md5);
 
     private static string[] ReadCollectionFormerNames(Type t)
     {
@@ -493,33 +466,8 @@ public sealed class PluginInspector : IDisposable
     // A string[] named argument arrives as a collection of typed arguments.
     private static string[] NamedStrings(IReadOnlyDictionary<string, object?> args, string key)
         => args.TryGetValue(key, out var v) && v is IEnumerable<CustomAttributeTypedArgument> items
-            ? items.Select(i => i.Value as string).Where(s => s is not null).ToArray()!
+            ? items.Select(i => i.Value).OfType<string>().ToArray()
             : Array.Empty<string>();
-
-    private static Guid Md5Guid(string input)
-    {
-        using var md5 = MD5.Create();
-        return new Guid(md5.ComputeHash(Encoding.UTF8.GetBytes(input)));
-    }
-
-    /// <summary>
-    /// Mirrors <c>ComponentDescriptor.StableTypeName</c>: <c>Type.FullName</c> without assembly
-    /// qualification (<c>List`1[System.Double]</c>), equal to FullName for non-generic types.
-    /// </summary>
-    internal static string StableTypeName(Type type)
-    {
-        if (type.IsArray)
-        {
-            var rank = type.GetArrayRank();
-            return StableTypeName(type.GetElementType()!) + (rank == 1 ? "[]" : "[" + new string(',', rank - 1) + "]");
-        }
-        if (type.IsByRef) return StableTypeName(type.GetElementType()!) + "&";
-        if (type.IsPointer) return StableTypeName(type.GetElementType()!) + "*";
-        if (type.IsGenericType && !type.IsGenericTypeDefinition)
-            return type.GetGenericTypeDefinition().FullName + "[" +
-                   string.Join(",", type.GetGenericArguments().Select(StableTypeName)) + "]";
-        return type.FullName ?? type.Name;
-    }
 
     private static string? NamedString(IReadOnlyDictionary<string, object?> args, string key)
         => args.TryGetValue(key, out var v) ? v as string : null;

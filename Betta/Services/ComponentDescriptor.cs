@@ -7,9 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using Betta.Attributes;
+using Betta.Guids;
 
 namespace Betta.Services
 {
@@ -96,9 +95,7 @@ namespace Betta.Services
         /// <see cref="StableTypeName"/>).
         /// </summary>
         public static Guid GenerateGuidFromMethod(Type serviceType, MethodInfo method) =>
-            IsOverloaded(serviceType, method)
-                ? SignatureGuid(serviceType, method, StableTypeName)
-                : Md5($"{StableTypeName(serviceType)}|{method.Name}");
+            GuidScheme.MethodGuid(serviceType, method, GuidScheme.IsOverloaded(serviceType, method, IsComponent));
 
         /// <summary>
         /// The pre-0.8 scheme: MD5 over the whole signature with <see cref="Type.FullName"/>,
@@ -108,7 +105,7 @@ namespace Betta.Services
         /// or .NET version.
         /// </summary>
         public static Guid LegacyGuidFromMethod(Type serviceType, MethodInfo method) =>
-            SignatureGuid(serviceType, method, t => t.FullName);
+            GuidScheme.LegacyGuid(serviceType, method);
 
         /// <summary>
         /// The GUID a method is published under: <paramref name="pinnedGuid"/> when set
@@ -141,23 +138,9 @@ namespace Betta.Services
                 serviceType.GetCustomAttribute<GrasshopperCollectionAttribute>()?.FormerNames);
 
         public static IReadOnlyList<Guid> ComputeFormerGuids(Type serviceType, MethodInfo method,
-            string[] formerMethodNames, string[] formerTypeNames)
-        {
-            static IEnumerable<string> Clean(string[] names) =>
-                (names ?? Array.Empty<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim());
-
-            var methodNames = Clean(formerMethodNames).ToList();
-            var types = new[] { StableTypeName(serviceType) }.Concat(Clean(formerTypeNames));
-            var names = new[] { method.Name }.Concat(methodNames.Where(n => !n.Contains('.'))).ToList();
-
-            // A dotted former name is "Type.Method": its last dot becomes the hash's separator.
-            var inputs = types.SelectMany(t => names.Select(m => $"{t}|{m}"))
-                .Concat(methodNames.Where(n => n.Contains('.')).Select(n => { var dot = n.LastIndexOf('.'); return $"{n[..dot]}|{n[(dot + 1)..]}"; }));
-            // The current Type|Method hash is the GUID itself, except on an overload, which hashes its signature.
-            var current = $"{StableTypeName(serviceType)}|{method.Name}";
-            var keepCurrent = methodNames.Contains(method.Name) && IsOverloaded(serviceType, method);
-            return inputs.Where(i => keepCurrent || i != current).Distinct().Select(Md5).ToList();
-        }
+            string[] formerMethodNames, string[] formerTypeNames) =>
+            GuidScheme.FormerInputs(GuidScheme.StableTypeName(serviceType), method.Name, GuidScheme.IsOverloaded(serviceType, method, IsComponent),
+                formerMethodNames, formerTypeNames).Select(GuidScheme.Md5).ToList();
 
         /// <summary>
         /// <see cref="Type.FullName"/> without assembly qualification: a closed generic
@@ -165,41 +148,9 @@ namespace Betta.Services
         /// System.Private.CoreLib, Version=…]]</c>. Equal to FullName for every type
         /// without generic arguments. Betta.Generators and Betta.Mcp build the same string.
         /// </summary>
-        public static string StableTypeName(Type type)
-        {
-            if (type.IsArray)
-            {
-                var rank = type.GetArrayRank();
-                return StableTypeName(type.GetElementType()) + (rank == 1 ? "[]" : "[" + new string(',', rank - 1) + "]");
-            }
-            if (type.IsByRef) return StableTypeName(type.GetElementType()) + "&";
-            if (type.IsPointer) return StableTypeName(type.GetElementType()) + "*";
-            if (type.IsGenericType && !type.IsGenericTypeDefinition)
-                return type.GetGenericTypeDefinition().FullName + "[" +
-                       string.Join(",", type.GetGenericArguments().Select(StableTypeName)) + "]";
-            return type.FullName ?? type.Name;
-        }
+        public static string StableTypeName(Type type) => GuidScheme.StableTypeName(type);
 
-        /// <summary>
-        /// True when the service type has another public <c>[GrasshopperMethod]</c> with
-        /// the same name (disabled ones count, so toggling Enabled changes no GUID).
-        /// </summary>
-        private static bool IsOverloaded(Type serviceType, MethodInfo method) =>
-            serviceType.GetMethods().Count(m => m.Name == method.Name &&
-                                                m.GetCustomAttribute<GrasshopperMethodAttribute>() != null) > 1;
-
-        private static Guid SignatureGuid(Type serviceType, MethodInfo method, Func<Type, string> typeName)
-        {
-            var paramSig = string.Join(",",
-                method.GetParameters().Select(p => typeName(p.ParameterType) + " " + p.Name));
-            return Md5($"{serviceType.FullName}|{method.Name}|{paramSig}|{typeName(method.ReturnType)}");
-        }
-
-        private static Guid Md5(string input)
-        {
-            using var md5 = MD5.Create();
-            return new Guid(md5.ComputeHash(Encoding.UTF8.GetBytes(input)));
-        }
+        private static bool IsComponent(MethodInfo m) => m.GetCustomAttribute<GrasshopperMethodAttribute>() != null;
 
         public override string ToString()
         {

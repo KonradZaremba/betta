@@ -41,6 +41,7 @@
     <None Include="README.md" Pack="true" PackagePath="\" />
     <!-- betta.lock's rules, shared with the source generator so betta_check_lock and BETTA012 agree. -->
     <Compile Include="..\Betta.Generators\GuidLockCore.cs" Link="Inspection\GuidLockCore.cs" />
+    <Compile Include="..\Betta.Generators\GuidScheme.cs" Link="Inspection\GuidScheme.cs" />
     <None Include="..\media\NBTabBettaMini_Cosmic.png" Pack="true" PackagePath="icon.png" Visible="false" />
   </ItemGroup>
 

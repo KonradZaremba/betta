@@ -65,20 +65,23 @@ namespace LockProbe
             public string Lock(string existing = "") => existing + string.Concat(Added.Select(l => l + "\n"));
         }
 
-        internal static Run Generate(string source, string lockText = null, bool lockOff = false)
-        {
-            var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
+        /// <summary>What a probe plugin compiles against: the framework and Betta.Abstractions.</summary>
+        internal static IEnumerable<MetadataReference> ProbeReferences() =>
+            ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
                 .Split(Path.PathSeparator)
                 .Select(p => MetadataReference.CreateFromFile(p))
                 .Append(MetadataReference.CreateFromFile(typeof(GrasshopperMethodAttribute).Assembly.Location));
+
+        internal static Run Generate(string source, string lockText = null, bool lockOff = false, CSharpParseOptions parse = null)
+        {
             var compilation = CSharpCompilation.Create("LockProbe_" + Guid.NewGuid().ToString("N"),
-                new[] { CSharpSyntaxTree.ParseText(source) }, references,
+                new[] { CSharpSyntaxTree.ParseText(source, parse) }, ProbeReferences(),
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
             var additional = lockText == null ? Array.Empty<AdditionalText>() : new AdditionalText[] { new Text(LockPath, lockText) };
             var options = new Options(lockOff ? "false" : "true");
             GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new BettaComponentGenerator().AsSourceGenerator() },
-                additional, optionsProvider: options);
+                additional, parse, options);
             driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
 
             var pending = driver.GetRunResult().Results.Single().GeneratedSources

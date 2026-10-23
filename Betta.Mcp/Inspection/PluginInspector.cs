@@ -388,29 +388,34 @@ public sealed class PluginInspector : IDisposable
     {
         var result = new List<string>();
         var marker = $" + {category}/{subCategory}/{name} (";
+        foreach (var line in LoggedRegistrations())
+        {
+            var at = line.IndexOf(marker, StringComparison.Ordinal);
+            if (at < 0) continue;
+            var start = at + marker.Length;
+            var end = line.IndexOf(')', start);
+            if (end < 0 || !System.Guid.TryParse(line.AsSpan(start, end - start), out var g)) continue;
+            var s = g.ToString();
+            result.Remove(s);
+            result.Add(s);
+        }
+        return result;
+    }
+
+    private List<string>? _loggedRegistrations;
+
+    // The " + " registration lines of Betta.log.old then Betta.log, read once per inspector, not per component.
+    private List<string> LoggedRegistrations()
+    {
+        if (_loggedRegistrations != null) return _loggedRegistrations;
+        _loggedRegistrations = new List<string>();
         foreach (var path in new[] { _logFile + ".old", _logFile })
         {
             if (!File.Exists(path)) continue;
-            try
-            {
-                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                using var reader = new StreamReader(stream);
-                string? line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    var at = line.IndexOf(marker, StringComparison.Ordinal);
-                    if (at < 0) continue;
-                    var start = at + marker.Length;
-                    var end = line.IndexOf(')', start);
-                    if (end < 0 || !System.Guid.TryParse(line.AsSpan(start, end - start), out var g)) continue;
-                    var s = g.ToString();
-                    result.Remove(s);
-                    result.Add(s);
-                }
-            }
+            try { _loggedRegistrations.AddRange(SharedFile.ReadLines(path).Where(l => l.Contains(" + ", StringComparison.Ordinal))); }
             catch (IOException) { }
         }
-        return result;
+        return _loggedRegistrations;
     }
 
     private static IEnumerable<Type> SafeGetTypes(Assembly asm)

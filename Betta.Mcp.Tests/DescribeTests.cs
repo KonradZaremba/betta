@@ -81,7 +81,7 @@ public class DescribeTests : IDisposable
         Assert.Equal(DescribeFixture.PinnedGuid, d!.Guid);
     }
 
-    private static string Md5(string input) => new Guid(MD5.HashData(Encoding.UTF8.GetBytes(input))).ToString();
+    internal static string Md5(string input) => new Guid(MD5.HashData(Encoding.UTF8.GetBytes(input))).ToString();
 
     [Fact]
     public void Derives_the_guid_from_the_type_and_method_name_when_none_is_pinned()

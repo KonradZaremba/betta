@@ -3,11 +3,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Betta.Mcp.Tools;
 using Xunit;
+using static Betta.Mcp.Tests.DescribeTests;
 
 namespace Betta.Mcp.Tests;
 
@@ -43,8 +42,6 @@ public class CheckLockTests : IDisposable
             JsonSerializer.SerializeToElement(new { lockFile = lockFile ?? _lock, dll = _dll })));
 
     private static List<string> Strings(JsonElement array) => array.EnumerateArray().Select(e => e.GetString()!).ToList();
-
-    private static string Md5(string input) => new Guid(MD5.HashData(Encoding.UTF8.GetBytes(input))).ToString("D");
 
     [Fact]
     public async Task Without_a_lock_it_lists_the_file_to_start_one_with()

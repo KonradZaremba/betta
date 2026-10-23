@@ -76,7 +76,6 @@ namespace Betta.Generators
                 .Where(static x => x is not null);
 
             var collected = collectionTypes.Collect();
-            var compilationAndCollected = context.CompilationProvider.Combine(collected);
 
             // betta.lock comes in as an AdditionalFiles item (Betta.Generators.targets adds it);
             // <BettaLock>false</BettaLock> turns the check off.
@@ -87,9 +86,9 @@ namespace Betta.Generators
                 .Select(static (o, _) => o.GlobalOptions.TryGetValue("build_property.BettaLock", out var v) &&
                                          string.Equals(v?.Trim(), "false", StringComparison.OrdinalIgnoreCase));
 
-            context.RegisterSourceOutput(compilationAndCollected.Combine(lockFiles).Combine(lockOff), static (spc, input) =>
+            context.RegisterSourceOutput(collected.Combine(lockFiles).Combine(lockOff), static (spc, input) =>
             {
-                var (((_, items), locks), lockOff) = input;
+                var ((items, locks), lockOff) = input;
                 // Distinct by serviceTypeFullName to merge partial-class halves.
                 var byType = new Dictionary<string, ServiceTypeModel>(StringComparer.Ordinal);
                 foreach (var item in items)

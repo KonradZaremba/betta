@@ -143,13 +143,16 @@ namespace Betta.Services
         public static IReadOnlyList<Guid> ComputeFormerGuids(Type serviceType, MethodInfo method,
             string[] formerMethodNames, string[] formerTypeNames)
         {
-            var methodNames = (formerMethodNames ?? Array.Empty<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
-            var types = new[] { StableTypeName(serviceType) }
-                .Concat((formerTypeNames ?? Array.Empty<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()));
+            static IEnumerable<string> Clean(string[] names) =>
+                (names ?? Array.Empty<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim());
+
+            var methodNames = Clean(formerMethodNames).ToList();
+            var types = new[] { StableTypeName(serviceType) }.Concat(Clean(formerTypeNames));
             var names = new[] { method.Name }.Concat(methodNames.Where(n => !n.Contains('.'))).ToList();
 
+            // A dotted former name is "Type.Method": its last dot becomes the hash's separator.
             var inputs = types.SelectMany(t => names.Select(m => $"{t}|{m}"))
-                .Concat(methodNames.Where(n => n.Contains('.')).Select(n => $"{n.Substring(0, n.LastIndexOf('.'))}|{n.Substring(n.LastIndexOf('.') + 1)}"));
+                .Concat(methodNames.Where(n => n.Contains('.')).Select(n => { var dot = n.LastIndexOf('.'); return $"{n[..dot]}|{n[(dot + 1)..]}"; }));
             // The current Type|Method hash is the GUID itself, except on an overload, which hashes its signature.
             var current = $"{StableTypeName(serviceType)}|{method.Name}";
             var keepCurrent = methodNames.Contains(method.Name) && IsOverloaded(serviceType, method);

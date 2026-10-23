@@ -48,10 +48,7 @@ public sealed class BettaLogResource : IResource
         var path = Paths.LogFile;
         if (!File.Exists(path)) return $"(no log at {path})";
         var collected = new List<string>(TailLines);
-        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var sr = new StreamReader(fs);
-        string? line;
-        while ((line = sr.ReadLine()) != null)
+        foreach (var line in SharedFile.ReadLines(path))
         {
             if (collected.Count == TailLines) collected.RemoveAt(0);
             collected.Add(line);

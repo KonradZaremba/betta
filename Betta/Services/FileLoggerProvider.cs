@@ -24,6 +24,7 @@ namespace Betta.Services
         // The size is checked when a session starts and then every RollCheckInterval lines, not on every line.
         internal const int RollCheckInterval = 1000;
 
+        // Static: Startup builds more than one provider, all writing the same file.
         private static readonly object _fileLock = new();
         private static int _writes;
         private readonly string _path;
@@ -38,33 +39,31 @@ namespace Betta.Services
             _path = path;
             _maxBytes = maxBytes;
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            Append(_path, _maxBytes,
-                $"--- Betta session started {DateTime.Now:yyyy-MM-dd HH:mm:ss} ---{Environment.NewLine}", checkSize: true);
+            Append($"--- Betta session started {DateTime.Now:yyyy-MM-dd HH:mm:ss} ---{Environment.NewLine}", checkSize: true);
         }
 
-        public ILogger CreateLogger(string categoryName) =>
-            new FileLogger(_path, _maxBytes, ShortName(categoryName));
+        public ILogger CreateLogger(string categoryName) => new FileLogger(this, ShortName(categoryName));
 
         public void Dispose() { }
 
-        internal static void Append(string path, long maxBytes, string text, bool checkSize)
+        internal void Append(string text, bool checkSize = false)
         {
             lock (_fileLock)
             {
-                if (checkSize || ++_writes % RollCheckInterval == 0) RollIfFull(path, maxBytes);
+                if (checkSize || ++_writes % RollCheckInterval == 0) RollIfFull();
                 // A log line is never worth failing a solve over: another Rhino, or a
                 // tool holding the file, makes the append throw.
-                try { File.AppendAllText(path, text); }
+                try { File.AppendAllText(_path, text); }
                 catch (IOException) { }
             }
         }
 
-        private static void RollIfFull(string path, long maxBytes)
+        private void RollIfFull()
         {
             try
             {
-                var file = new FileInfo(path);
-                if (file.Exists && file.Length >= maxBytes) File.Move(path, path + ".old", overwrite: true);
+                var file = new FileInfo(_path);
+                if (file.Exists && file.Length >= _maxBytes) File.Move(_path, _path + ".old", overwrite: true);
             }
             catch (IOException) { } // held open without delete sharing: try again at the next check
         }
@@ -85,14 +84,12 @@ namespace Betta.Services
 
     internal sealed class FileLogger : ILogger
     {
-        private readonly string _path;
-        private readonly long _maxBytes;
+        private readonly FileLoggerProvider _provider;
         private readonly string _category;
 
-        public FileLogger(string path, long maxBytes, string category)
+        public FileLogger(FileLoggerProvider provider, string category)
         {
-            _path = path;
-            _maxBytes = maxBytes;
+            _provider = provider;
             _category = category;
         }
 
@@ -109,7 +106,7 @@ namespace Betta.Services
             var line = $"{DateTime.Now:HH:mm:ss.fff} [{Label(logLevel)}] {_category}: {message}";
             if (exception != null) line += Environment.NewLine + exception;
 
-            FileLoggerProvider.Append(_path, _maxBytes, line + Environment.NewLine, checkSize: false);
+            _provider.Append(line + Environment.NewLine);
         }
 
         private static string Label(LogLevel level) => level switch

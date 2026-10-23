@@ -111,16 +111,16 @@ namespace Betta.Lock
         /// <summary>Locked components nothing answers to: renames that break saved files.</summary>
         public List<LockFinding> Gone { get; }
 
-        /// <summary>Published components not in the lock yet, by label.</summary>
-        public List<LockComponent> Unlocked { get; }
-
-        /// <summary>What the build adds: nothing while <see cref="Gone"/> has findings, so a rename's new GUID waits until it's resolved.</summary>
-        public List<LockComponent> ToAdd => Gone.Count == 0 ? Unlocked : new List<LockComponent>();
+        /// <summary>
+        /// Published components not in the lock yet, by label, which the build adds: none while
+        /// <see cref="Gone"/> has findings, so a rename's new GUID waits until it's resolved.
+        /// </summary>
+        public List<LockComponent> ToAdd { get; }
 
         public LockResult(List<LockFinding> gone, List<LockComponent> unlocked)
         {
             Gone = gone;
-            Unlocked = unlocked;
+            ToAdd = gone.Count == 0 ? unlocked : new List<LockComponent>();
         }
     }
 

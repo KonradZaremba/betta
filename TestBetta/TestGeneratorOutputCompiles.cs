@@ -3,16 +3,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-using System;
 using System.Collections;
-using System.IO;
 using System.Linq;
-using System.Reflection;
-using Betta.Attributes;
-using Betta.Generators;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
+using static TestBetta.TestGuidLock;
 
 namespace TestBetta
 {
@@ -36,26 +31,9 @@ namespace EmitProbe
     }
 }";
 
-        private static IEnumerable Blueprints(LanguageVersion version)
-        {
-            var parse = new CSharpParseOptions(version);
-            var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
-                .Split(Path.PathSeparator)
-                .Select(p => MetadataReference.CreateFromFile(p))
-                .Append(MetadataReference.CreateFromFile(typeof(GrasshopperMethodAttribute).Assembly.Location));
-            var compilation = CSharpCompilation.Create("EmitProbe_" + Guid.NewGuid().ToString("N"),
-                new[] { CSharpSyntaxTree.ParseText(Source, parse) }, references,
-                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-            CSharpGeneratorDriver.Create(new[] { new BettaComponentGenerator().AsSourceGenerator() }, parseOptions: parse)
-                .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
-            using var pe = new MemoryStream();
-            var emit = output.Emit(pe);
-            Assert.True(emit.Success, string.Join("\n", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
-
-            return (IEnumerable)Assembly.Load(pe.ToArray()).GetType("Betta.Generated.BettaPluginBootstrap")
+        private static IEnumerable Blueprints(LanguageVersion version) =>
+            (IEnumerable)Load(Generate(Source, parse: new CSharpParseOptions(version)).Output, "Betta.Generated.BettaPluginBootstrap")
                 .GetMethod("GetDescriptorBlueprints").Invoke(null, null);
-        }
 
         private static object Prop(object bp, string name) => bp.GetType().GetProperty(name).GetValue(bp);
 

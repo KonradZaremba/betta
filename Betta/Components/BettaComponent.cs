@@ -128,8 +128,7 @@ namespace Betta.Components
         private static bool IsTaskType(Type t)
         {
             if (t == null) return false;
-            // Non-generic Task / ValueTask: async, but nothing to output (like void).
-            if (t == typeof(Task) || t == typeof(ValueTask)) return true;
+            if (OutputPlanner.IsResultlessTask(t)) return true;
             if (!t.IsGenericType) return false;
             var gt = t.GetGenericTypeDefinition();
             return gt == typeof(Task<>) || gt == typeof(ValueTask<>);
@@ -142,7 +141,7 @@ namespace Betta.Components
         /// </summary>
         internal static object TaskResultOf(Type declaredReturnType, Task completed)
         {
-            if (declaredReturnType == typeof(Task) || declaredReturnType == typeof(ValueTask)) return null;
+            if (OutputPlanner.IsResultlessTask(declaredReturnType)) return null;
             return completed.GetType().GetProperty("Result")?.GetValue(completed);
         }
 

@@ -56,19 +56,12 @@ public sealed class BettaRecentLogsTool : ITool
             });
         }
 
-        // Read share-friendly: Betta's FileLoggerProvider holds an exclusive
-        // write lock briefly. Using FileShare.ReadWrite lets us tail while
-        // Grasshopper is running.
+        // Shared read: Betta's FileLoggerProvider appends while Grasshopper runs.
         var collected = new List<string>(n);
-        using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-        using (var sr = new StreamReader(fs))
+        foreach (var line in SharedFile.ReadLines(path))
         {
-            string? line;
-            while ((line = sr.ReadLine()) != null)
-            {
-                if (collected.Count == n) collected.RemoveAt(0);
-                collected.Add(line);
-            }
+            if (collected.Count == n) collected.RemoveAt(0);
+            collected.Add(line);
         }
 
         return Task.FromResult<object>(new

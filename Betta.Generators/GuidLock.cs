@@ -25,7 +25,7 @@ namespace Betta.Generators
     internal static class GuidLock
     {
         internal const string PendingHintName = "BettaLockPending.g.cs";
-        // Betta.Generators.targets matches this prefix.
+        // Betta.Generators.targets matches this prefix (_BettaLockPrefix).
         internal const string PendingPrefix = "// add: ";
 
         // Diagnostic properties Betta.Generators.CodeFixes reads: a LockFix name and its value.

@@ -15,6 +15,8 @@
 
     <PropertyGroup>
       <_BettaLockPending>$(CompilerGeneratedFilesOutputPath)/Betta.Generators/Betta.Generators.BettaComponentGenerator/BettaLockPending.g.cs</_BettaLockPending>
+      <!-- GuidLock.PendingPrefix, without its trailing space. -->
+      <_BettaLockPrefix>// add:</_BettaLockPrefix>
       <!-- One line per ;-separated part. -->
       <_BettaLockHeader>
         # betta.lock: the GUID of every Grasshopper component this plugin has published. Check it in.;
@@ -32,8 +34,8 @@
     </ReadLinesFromFile>
 
     <ItemGroup>
-      <_BettaLockAdd Include="$([System.String]::Copy('%(_BettaLockPendingLine.Identity)').Substring(8).Trim())"
-                     Condition="$([System.String]::Copy('%(_BettaLockPendingLine.Identity)').StartsWith('// add: '))" />
+      <_BettaLockAdd Include="$([System.String]::Copy('%(_BettaLockPendingLine.Identity)').Substring($(_BettaLockPrefix.Length)).Trim())"
+                     Condition="$([System.String]::Copy('%(_BettaLockPendingLine.Identity)').StartsWith('$(_BettaLockPrefix)'))" />
       <_BettaLockAdd Remove="@(_BettaLockLine)" />
       <_BettaLockLine Include="$(_BettaLockHeader)" Condition="!Exists('$(BettaLockFile)')" />
     </ItemGroup>

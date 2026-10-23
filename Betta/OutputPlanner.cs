@@ -48,12 +48,14 @@ namespace Betta
     /// </summary>
     public static class OutputPlanner
     {
+        /// <summary>Non-generic Task / ValueTask: awaited like any task, with nothing to output (like void).</summary>
+        internal static bool IsResultlessTask(Type t) =>
+            t == typeof(System.Threading.Tasks.Task) || t == typeof(System.Threading.Tasks.ValueTask);
+
         public static List<OutputPlan> PlanOutputs(Type outputType, MethodInfo method)
         {
             var plans = new List<OutputPlan>();
-            if (outputType == null || outputType == typeof(void) ||
-                outputType == typeof(System.Threading.Tasks.Task) ||
-                outputType == typeof(System.Threading.Tasks.ValueTask))
+            if (outputType == null || outputType == typeof(void) || IsResultlessTask(outputType))
                 return plans; // no outputs for void / non-generic Task / ValueTask methods
 
             // Explicit [GrasshopperOutput] attributes (method-level + return-value),

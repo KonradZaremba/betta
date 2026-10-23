@@ -69,7 +69,7 @@ public sealed class BettaCheckLockTool : ITool
         var components = inspector.LockComponents(dll, errors);
 
         var lockExists = File.Exists(lockFile);
-        var entries = lockExists ? GuidLockCore.Parse(ReadShared(lockFile)) : new List<LockEntry>();
+        var entries = lockExists ? GuidLockCore.Parse(SharedFile.ReadLines(lockFile)) : new List<LockEntry>();
         var result = GuidLockCore.Check(entries, components);
 
         return Task.FromResult<object>(new
@@ -99,16 +99,5 @@ public sealed class BettaCheckLockTool : ITool
             yield return "No betta.lock yet. With Betta.Generators the build writes it; otherwise start one with the toAdd lines and check it in.";
         if (result.Gone.Count > 0)
             yield return "toAdd stays empty until every gone component is resolved, so a rename's new GUID doesn't take the old one's place unnoticed.";
-    }
-
-    // Shared read: an IDE or a running build may have the file open.
-    private static IEnumerable<string> ReadShared(string path)
-    {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var reader = new StreamReader(stream);
-        var lines = new List<string>();
-        string? line;
-        while ((line = reader.ReadLine()) != null) lines.Add(line);
-        return lines;
     }
 }

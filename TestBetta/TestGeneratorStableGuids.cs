@@ -6,15 +6,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
-using Betta.Attributes;
-using Betta.Generators;
 using Betta.Services;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
+using static TestBetta.TestGuidLock;
 
 namespace TestBetta
 {
@@ -91,24 +88,10 @@ namespace GenProbe
 
         private static (Assembly Assembly, IEnumerable Blueprints, IReadOnlyList<Diagnostic> Diagnostics) Compile(string source)
         {
-            var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
-                .Split(Path.PathSeparator)
-                .Select(p => MetadataReference.CreateFromFile(p))
-                .Append(MetadataReference.CreateFromFile(typeof(GrasshopperMethodAttribute).Assembly.Location));
-            var compilation = CSharpCompilation.Create("GenProbe_" + Guid.NewGuid().ToString("N"),
-                new[] { CSharpSyntaxTree.ParseText(source) }, references,
-                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-            CSharpGeneratorDriver.Create(new BettaComponentGenerator())
-                .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
-            using var pe = new MemoryStream();
-            var emit = output.Emit(pe);
-            Assert.True(emit.Success, string.Join("\n", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
-
-            var asm = Assembly.Load(pe.ToArray());
-            var blueprints = (IEnumerable)asm.GetType("Betta.Generated.BettaPluginBootstrap")
-                .GetMethod("GetDescriptorBlueprints").Invoke(null, null);
-            return (asm, blueprints, diagnostics);
+            var run = Generate(source);
+            var bootstrap = Load(run.Output, "Betta.Generated.BettaPluginBootstrap");
+            var blueprints = (IEnumerable)bootstrap.GetMethod("GetDescriptorBlueprints").Invoke(null, null);
+            return (bootstrap.Assembly, blueprints, run.Diagnostics);
         }
 
         private static object Prop(object bp, string name) => bp.GetType().GetProperty(name).GetValue(bp);

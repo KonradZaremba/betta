@@ -5,11 +5,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Betta.Attributes;
 using Betta.Generators;
 using Betta.Generators.CodeFixes;
 using Betta.Services;
@@ -33,14 +31,10 @@ namespace TestBetta
         private static async Task<(string Text, string Title)> Fix(string source, string lockText)
         {
             using var workspace = new AdhocWorkspace();
-            var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
-                .Split(Path.PathSeparator)
-                .Select(p => MetadataReference.CreateFromFile(p))
-                .Append(MetadataReference.CreateFromFile(typeof(GrasshopperMethodAttribute).Assembly.Location));
             var document = workspace.CurrentSolution
                 .AddProject("LockProbe", "LockProbe", LanguageNames.CSharp)
                 .WithCompilationOptions(new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary))
-                .WithMetadataReferences(references)
+                .WithMetadataReferences(ProbeReferences())
                 .AddDocument("Pack.cs", source);
 
             var compilation = await document.Project.GetCompilationAsync();

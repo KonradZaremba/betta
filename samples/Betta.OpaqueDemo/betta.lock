@@ -1,0 +1,10 @@
+# betta.lock: the GUID of every Grasshopper component this plugin has published. Check it in.
+# Saved .gh files find components by GUID. The build adds new components here, and warning
+# BETTA012 flags a line nothing answers to any more: a rename that breaks saved files. Fix it
+# with FormerNames. Delete a line only for a component removed on purpose, or never released.
+40b14e55-4cae-01c5-0a7c-2aa5b55df982 Betta.OpaqueDemo.GraphCollection.Batch
+0ddbc753-e953-5e5a-d6fe-aa3cca77f37b Betta.OpaqueDemo.GraphCollection.BatchFromTree
+b172ee42-bf12-5d93-403a-8540b8de3589 Betta.OpaqueDemo.GraphCollection.Deconstruct
+319323fa-c57d-c06f-782e-31c2f2f88d17 Betta.OpaqueDemo.GraphCollection.Label
+ace20416-af41-0e55-ba1c-e40be5d6fe0f Betta.OpaqueDemo.GraphCollection.Make
+8f79f1d0-9298-8245-85ff-2277c6cd8b83 Betta.OpaqueDemo.GraphCollection.Scaled

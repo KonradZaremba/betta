@@ -25,6 +25,7 @@ namespace Betta.Generators
     /// generated bootstrap, converts blueprints to <c>ComponentDescriptor</c>s
     /// and skips the reflection scan for that assembly. Both paths produce
     /// identical descriptors so save/reload compatibility is preserved.
+    /// It also checks the plugin's betta.lock (<see cref="GuidLock"/>).
     ///
     /// Notes on the type-name matching strategy:
     ///   - The generator stays free of a hard reference to Betta.Abstractions:
@@ -77,9 +78,18 @@ namespace Betta.Generators
             var collected = collectionTypes.Collect();
             var compilationAndCollected = context.CompilationProvider.Combine(collected);
 
-            context.RegisterSourceOutput(compilationAndCollected, static (spc, tuple) =>
+            // betta.lock comes in as an AdditionalFiles item (Betta.Generators.targets adds it);
+            // <BettaLock>false</BettaLock> turns the check off.
+            var lockFiles = context.AdditionalTextsProvider
+                .Where(static f => string.Equals(System.IO.Path.GetFileName(f.Path), GuidLock.FileName, StringComparison.OrdinalIgnoreCase))
+                .Collect();
+            var lockOff = context.AnalyzerConfigOptionsProvider
+                .Select(static (o, _) => o.GlobalOptions.TryGetValue("build_property.BettaLock", out var v) &&
+                                         string.Equals(v?.Trim(), "false", StringComparison.OrdinalIgnoreCase));
+
+            context.RegisterSourceOutput(compilationAndCollected.Combine(lockFiles).Combine(lockOff), static (spc, input) =>
             {
-                var (_, items) = tuple;
+                var (((_, items), locks), lockOff) = input;
                 // Distinct by serviceTypeFullName to merge partial-class halves.
                 var byType = new Dictionary<string, ServiceTypeModel>(StringComparer.Ordinal);
                 foreach (var item in items)
@@ -102,6 +112,8 @@ namespace Betta.Generators
 
                 var src = EmitBootstrap(byType.Values);
                 spc.AddSource("BettaPluginBootstrap.g.cs", src);
+
+                if (!lockOff) GuidLock.Run(spc, byType.Values, locks.FirstOrDefault());
             });
         }
 
@@ -120,6 +132,7 @@ namespace Betta.Generators
 
             var collectionAttr = FindAttribute(typeSym.GetAttributes(), GrasshopperCollectionAttr);
             var (defaultCategory, defaultSubCategory) = ExtractCollectionDefaults(collectionAttr, typeSym);
+            var formerTypeNames = NamedArgStrings(collectionAttr, "FormerNames");
 
             var componentMethods = typeSym.GetMembers().OfType<IMethodSymbol>()
                 .Where(m => m.MethodKind == MethodKind.Ordinary && m.DeclaredAccessibility == Accessibility.Public &&
@@ -180,6 +193,8 @@ namespace Betta.Generators
                     }
                     (guid, guidInput) = ComputeMethodGuidWithInput(serviceFullName, m.Name, parameters, returnFullName, overloaded);
                 }
+                var formerGuids = ComputeFormerGuids(serviceFullName, m.Name, overloaded,
+                    NamedArgStrings(ghAttr, "FormerNames"), formerTypeNames);
 
                 var hasPreview = ReturnSurfaces(m.ReturnType, PreviewInterfaceFullName);
                 var hasBakeable = ReturnSurfaces(m.ReturnType, BakeableInterfaceFullName);
@@ -197,6 +212,9 @@ namespace Betta.Generators
                     hasPreview: hasPreview,
                     hasBakeable: hasBakeable,
                     parameters: parameters,
+                    overloaded: overloaded,
+                    formerGuids: formerGuids,
+                    location: m.Locations.FirstOrDefault() ?? Location.None,
                     guidInputDebug: guidInput));
             }
 
@@ -246,6 +264,15 @@ namespace Betta.Generators
                 if (kv.Key == name)
                     return kv.Value.Value as string ?? fallback;
             return fallback;
+        }
+
+        private static string[] NamedArgStrings(AttributeData a, string name)
+        {
+            if (a == null) return Array.Empty<string>();
+            foreach (var kv in a.NamedArguments)
+                if (kv.Key == name && kv.Value.Kind == TypedConstantKind.Array && !kv.Value.IsNull)
+                    return kv.Value.Values.Select(v => v.Value as string).Where(s => s != null).ToArray();
+            return Array.Empty<string>();
         }
 
         private static bool NamedArgBool(AttributeData a, string name, bool fallback)
@@ -494,9 +521,32 @@ namespace Betta.Generators
             var input = serviceFullName + "|" + methodName;
             if (overloaded)
                 input += "|" + string.Join(",", parameters.Select(p => p.TypeFullName + " " + p.Name)) + "|" + returnFullName;
+            return (Md5(input), input);
+        }
+
+        /// <summary>
+        /// Reproduces <c>ComponentDescriptor.ComputeFormerGuids</c>: the <c>Type|Method</c> hashes
+        /// of the names in FormerNames on <c>[GrasshopperMethod]</c> (a method name, or
+        /// <c>Namespace.Type.Method</c>) and <c>[GrasshopperCollection]</c> (a full type name).
+        /// </summary>
+        internal static Guid[] ComputeFormerGuids(string serviceFullName, string methodName, bool overloaded,
+            IEnumerable<string> formerMethodNames, IEnumerable<string> formerTypeNames)
+        {
+            var methodNames = formerMethodNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
+            var typeNames = new[] { serviceFullName }.Concat(formerTypeNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()));
+            var names = new[] { methodName }.Concat(methodNames.Where(n => n.IndexOf('.') < 0)).ToList();
+
+            var inputs = typeNames.SelectMany(t => names.Select(m => t + "|" + m))
+                .Concat(methodNames.Where(n => n.IndexOf('.') >= 0).Select(n => n.Substring(0, n.LastIndexOf('.')) + "|" + n.Substring(n.LastIndexOf('.') + 1)));
+            var current = serviceFullName + "|" + methodName;
+            var keepCurrent = overloaded && methodNames.Contains(methodName);
+            return inputs.Where(i => keepCurrent || i != current).Distinct().Select(Md5).ToArray();
+        }
+
+        private static Guid Md5(string input)
+        {
             using var md5 = MD5.Create();
-            var bytes = md5.ComputeHash(Encoding.UTF8.GetBytes(input));
-            return (new Guid(bytes), input);
+            return new Guid(md5.ComputeHash(Encoding.UTF8.GetBytes(input)));
         }
 
         // ---- Emit ---------------------------------------------------------
@@ -628,12 +678,19 @@ namespace Betta.Generators
             public bool HasPreview { get; }
             public bool HasBakeable { get; }
             public ParamModel[] Parameters { get; }
+            public bool Overloaded { get; }
+            public Guid[] FormerGuids { get; }
+            public Location Location { get; }
             public string GuidInputDebug { get; }
 
             public MethodModel(string methodName, string name, string nickName, string description,
                 string category, string subCategory, Guid guid, bool enabled, string iconResource,
-                bool hasPreview, bool hasBakeable, ParamModel[] parameters, string guidInputDebug = null)
+                bool hasPreview, bool hasBakeable, ParamModel[] parameters, bool overloaded,
+                Guid[] formerGuids, Location location, string guidInputDebug = null)
             {
+                Overloaded = overloaded;
+                FormerGuids = formerGuids;
+                Location = location;
                 MethodName = methodName;
                 Name = name;
                 NickName = nickName;

@@ -13,7 +13,7 @@
     <PackageId>Betta.Generators</PackageId>
     <Title>Betta source generator</Title>
     <Authors>Konrad Zaremba</Authors>
-    <Description>Compile-time Roslyn incremental generator for Betta plugins. Emits a Betta.Generated.BettaPluginBootstrap that Betta's runtime picks up as a fast-path descriptor manifest, skipping the reflection scan on load. Also emits BETTA001/BETTA011 diagnostics for unsupported parameter types and overloaded component methods. Optional — Betta's runtime reflection fallback works fine without it.</Description>
+    <Description>Compile-time Roslyn incremental generator for Betta plugins. Emits a Betta.Generated.BettaPluginBootstrap that Betta's runtime picks up as a fast-path descriptor manifest, skipping the reflection scan on load. Also emits BETTA001/BETTA011 diagnostics for unsupported parameter types and overloaded component methods, and keeps betta.lock, a checked-in list of the plugin's component GUIDs: BETTA012 warns when a rename would break saved .gh files. Optional — Betta's runtime reflection fallback works fine without it.</Description>
     <PackageTags>grasshopper;rhino;betta;source-generator;roslyn</PackageTags>
     <RepositoryUrl>https://github.com/KonradZaremba/betta</RepositoryUrl>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
@@ -30,6 +30,9 @@
 
   <ItemGroup>
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <!-- betta.lock: wires the lock file in and appends new components after compile. -->
+    <None Include="build\Betta.Generators.props" Pack="true" PackagePath="build" />
+    <None Include="build\Betta.Generators.targets" Pack="true" PackagePath="build" />
   </ItemGroup>
 
 </Project>

@@ -203,6 +203,15 @@ What a change does to saved files:
 | Add an overload (a second method with the same name) | the first one goes missing, unless it lists its own name in `FormerNames` |
 | Change a pinned `Guid`, or remove the component | missing |
 
+**A forgotten `FormerNames` is caught at build time.** With the `Betta.Generators` source generator, the build keeps `betta.lock` next to your project: one line per published component, its GUID and name. Check it in. When a change leaves a locked GUID that no method answers to, the build warns and says what to add:
+
+```
+warning BETTA012: 'MyPlugin.IMathPack.Remap' is in betta.lock, but no [GrasshopperMethod] answers to its GUID … any more,
+so saved .gh files that use it will show it as missing. If it was renamed to 'Map', add FormerNames = new[] { "Remap" } to that method. …
+```
+
+The build adds new components to the file, and adds nothing while a `BETTA012` stands, so a rename's new GUID can't slip in unnoticed. It never removes a line: delete one yourself for a component you removed on purpose, or never released. Make it an error with `<WarningsAsErrors>BETTA012</WarningsAsErrors>`, or turn it off with `<BettaLock>false</BettaLock>`.
+
 Before 0.8 the GUID covered the whole signature, so any parameter change broke saved files, and a generic type in it (`List<T>`, a tuple, `Task<T>`) added assembly versions, so it also changed with plugin releases and Rhino updates. 0.8 registers that old GUID as a hidden alias: a 0.7 file still opens and takes the new GUID the next time it's saved (with a generic signature, only if it was saved with the same plugin, Rhino and .NET versions).
 
 **Upgrading from 0.7 changes every GUID once.** Three things to do:
@@ -387,7 +396,7 @@ Off by default. Enable via **Betta → Trusted publishers…** to pick between `
 
 - **Async** (`Task<T>` / `ValueTask<T>` returns) — non-blocking solve, bounded LRU cache with in-flight dedupe.
 - **Hot-reload** — when you drop a replaced DLL into the Betta folder mid-session, Betta now writes a visible warning to the Rhino command line telling you to restart. (True ALC-based unload is roadmap.)
-- **`Betta.Generators`** (preview) — Roslyn source generator that emits a `BettaPluginBootstrap` descriptor manifest; when a plugin carries one, Betta uses it instead of the reflection scan at load. Also reports `BETTA001`/`BETTA011` diagnostics for unsupported parameter types and overloaded component methods. Optional — reflection works without it.
+- **`Betta.Generators`** (preview) — Roslyn source generator that emits a `BettaPluginBootstrap` descriptor manifest; when a plugin carries one, Betta uses it instead of the reflection scan at load. Also reports `BETTA001`/`BETTA011` diagnostics for unsupported parameter types and overloaded component methods, and keeps `betta.lock` (`BETTA012`, see [Saved files](#saved-files-and-component-guids)). Optional — reflection works without it. Not on nuget.org yet.
 
 ## A fish per component
 

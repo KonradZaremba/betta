@@ -29,6 +29,10 @@
       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <!-- What the Betta.Generators package imports on its own: betta.lock and BETTA012. -->
+  <Import Project="..\..\Betta.Generators\build\Betta.Generators.props" />
+  <Import Project="..\..\Betta.Generators\build\Betta.Generators.targets" />
+
   <ItemGroup>
     <PackageReference Include="Grasshopper" Version="[8.0,8.27)" IncludeAssets="compile;build" />
   </ItemGroup>

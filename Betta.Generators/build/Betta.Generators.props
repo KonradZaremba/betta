@@ -1,0 +1,19 @@
+<Project>
+  <!--
+    betta.lock: the GUID of every component this plugin has published, checked in next to the
+    project. The source generator warns (BETTA012) when a locked component is gone, a rename that
+    would break saved .gh files; Betta.Generators.targets adds new components after each compile.
+    Turn it off with <BettaLock>false</BettaLock>.
+  -->
+  <PropertyGroup>
+    <BettaLock Condition="'$(BettaLock)' == ''">true</BettaLock>
+    <BettaLockFile Condition="'$(BettaLockFile)' == ''">$(MSBuildProjectDirectory)\betta.lock</BettaLockFile>
+    <!-- The generator can't write files: it lists new components in a generated source,
+         which the compiler writes to obj only with this on. -->
+    <EmitCompilerGeneratedFiles Condition="'$(EmitCompilerGeneratedFiles)' == ''">true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="BettaLock" />
+  </ItemGroup>
+</Project>

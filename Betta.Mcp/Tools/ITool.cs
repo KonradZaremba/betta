@@ -49,3 +49,31 @@ public sealed class ToolRegistry
         _tools.Add(new BettaCheckLockTool());
     }
 }
+
+internal static class ToolArguments
+{
+    /// <summary>The string property <paramref name="name"/> when the arguments are an object holding one, else null.</summary>
+    public static string? GetString(this JsonElement? arguments, string name) =>
+        arguments is { ValueKind: JsonValueKind.Object } args
+        && args.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String
+            ? el.GetString() : null;
+
+    /// <summary>The integer property <paramref name="name"/> when the arguments are an object holding one, else null.</summary>
+    public static int? GetInt32(this JsonElement? arguments, string name) =>
+        arguments is { ValueKind: JsonValueKind.Object } args
+        && args.TryGetProperty(name, out var el) && el.TryGetInt32(out var value)
+            ? value : null;
+
+    /// <summary>The string items of the array property <paramref name="name"/>, skipping non-strings; empty when absent.</summary>
+    public static IReadOnlyList<string> GetStrings(this JsonElement? arguments, string name)
+    {
+        var items = new List<string>();
+        if (arguments is { ValueKind: JsonValueKind.Object } args
+            && args.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in el.EnumerateArray())
+                if (item.ValueKind == JsonValueKind.String) items.Add(item.GetString() ?? string.Empty);
+        }
+        return items;
+    }
+}

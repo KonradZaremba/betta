@@ -47,16 +47,11 @@ public sealed class BettaCheckLockTool : ITool
 
     public Task<object> InvokeAsync(JsonElement? arguments)
     {
-        if (!arguments.HasValue
-            || arguments.Value.ValueKind != JsonValueKind.Object
-            || !arguments.Value.TryGetProperty("lockFile", out var lockEl)
-            || lockEl.ValueKind != JsonValueKind.String)
-        {
-            throw new ArgumentException("betta_check_lock requires { lockFile: string, dll?: string }.");
-        }
-        string? dll = arguments.Value.TryGetProperty("dll", out var dllEl) && dllEl.ValueKind == JsonValueKind.String ? dllEl.GetString() : null;
+        var lockArg = arguments.GetString("lockFile")
+            ?? throw new ArgumentException("betta_check_lock requires { lockFile: string, dll?: string }.");
+        string? dll = arguments.GetString("dll");
 
-        var lockFile = Path.GetFullPath(lockEl.GetString() ?? "");
+        var lockFile = Path.GetFullPath(lockArg);
         if (Directory.Exists(lockFile)) lockFile = Path.Combine(lockFile, GuidLockCore.FileName);
         if (dll != null)
         {

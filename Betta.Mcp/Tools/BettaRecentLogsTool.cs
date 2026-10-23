@@ -37,13 +37,7 @@ public sealed class BettaRecentLogsTool : ITool
 
     public Task<object> InvokeAsync(JsonElement? arguments)
     {
-        int n = 50;
-        if (arguments.HasValue && arguments.Value.ValueKind == JsonValueKind.Object
-            && arguments.Value.TryGetProperty("lines", out var linesEl)
-            && linesEl.TryGetInt32(out var requested))
-        {
-            n = Math.Clamp(requested, 1, 2000);
-        }
+        int n = arguments.GetInt32("lines") is { } requested ? Math.Clamp(requested, 1, 2000) : 50;
 
         var path = Paths.LogFile;
         if (!File.Exists(path))

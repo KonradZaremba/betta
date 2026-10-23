@@ -39,15 +39,8 @@ public sealed class BettaDescribeTool : ITool
 
     public Task<object> InvokeAsync(JsonElement? arguments)
     {
-        if (!arguments.HasValue
-            || arguments.Value.ValueKind != JsonValueKind.Object
-            || !arguments.Value.TryGetProperty("name", out var nameEl)
-            || nameEl.ValueKind != JsonValueKind.String)
-        {
-            throw new ArgumentException("betta_describe requires { name: string }.");
-        }
-
-        var name = nameEl.GetString() ?? string.Empty;
+        var name = arguments.GetString("name")
+            ?? throw new ArgumentException("betta_describe requires { name: string }.");
         using var inspector = new PluginInspector();
         var found = inspector.Describe(name);
         return Task.FromResult<object>(found is null

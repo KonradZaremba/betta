@@ -115,22 +115,9 @@ public sealed class BettaValidateSignatureTool : ITool
 
     public Task<object> InvokeAsync(JsonElement? arguments)
     {
-        if (!arguments.HasValue
-            || arguments.Value.ValueKind != JsonValueKind.Object
-            || !arguments.Value.TryGetProperty("signature", out var sigEl)
-            || sigEl.ValueKind != JsonValueKind.String)
-        {
-            throw new ArgumentException("betta_validate_signature requires { signature: string }.");
-        }
-
-        var sig = sigEl.GetString() ?? string.Empty;
-        var opaque = new HashSet<string>(StringComparer.Ordinal);
-        if (arguments.Value.TryGetProperty("opaqueTypes", out var opaqueEl)
-            && opaqueEl.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in opaqueEl.EnumerateArray())
-                if (item.ValueKind == JsonValueKind.String) opaque.Add(item.GetString() ?? string.Empty);
-        }
+        var sig = arguments.GetString("signature")
+            ?? throw new ArgumentException("betta_validate_signature requires { signature: string }.");
+        var opaque = new HashSet<string>(arguments.GetStrings("opaqueTypes"), StringComparer.Ordinal);
 
         var problems = new List<string>();
         var notes = new List<string>();

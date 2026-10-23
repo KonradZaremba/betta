@@ -39,6 +39,7 @@ skill cover that.
 | `betta_recent_logs` | `{lines?: int}` (default 50) | The last N lines of `Betta.log`. |
 | `betta_describe` | `{name: string}` | The descriptor for a component by display name (case-insensitive), including `guidPinned`, `legacyGuid` (the pre-0.8 GUID when it differs), `formerGuids` (aliases from `FormerNames`) and `loggedGuids` (every GUID Betta.log recorded for it, oldest first). |
 | `betta_validate_signature` | `{signature: string, opaqueTypes?: string[]}` | Heuristic check of a method signature against what the Betta runtime accepts: `{ok, parsed, problems, notes}`. |
+| `betta_check_lock` | `{lockFile: string, dll?: string}` | The build's `BETTA012` check against a built plugin DLL (default: every plugin in the Betta folder): `gone` lists the components in `betta.lock` nothing answers to any more, each with a message and the `FormerNames` or `Guid` fix; `toAdd` lists the lines the build would append (the whole file, when there's no lock yet). Same rules as the source generator, so it also covers plugins built without it. |
 
 All four tools are read-only (`annotations.readOnlyHint: true`).
 
@@ -172,7 +173,7 @@ alive?" check is to pipe a single `tools/list` call to it:
 
 Expected output: a JSON-RPC response whose `result.tools` contains
 `betta_status`, `betta_recent_logs`, `betta_describe`,
-`betta_validate_signature`.
+`betta_validate_signature`, `betta_check_lock`.
 
 Modern-era probe: `'{"jsonrpc":"2.0","id":1,"method":"server/discover"}' | betta-mcp`.
 
@@ -184,7 +185,7 @@ A non-interactive one-shot mode is also provided for CI:
 dotnet run --project Betta.Mcp -- --tools-list
 ```
 
-Prints `{"tools":["betta_status","betta_recent_logs","betta_describe","betta_validate_signature"]}` and exits.
+Prints `{"tools":["betta_status","betta_recent_logs","betta_describe","betta_validate_signature","betta_check_lock"]}` and exits.
 
 ## Configuration
 

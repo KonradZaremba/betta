@@ -210,7 +210,7 @@ warning BETTA012: 'MyPlugin.IMathPack.Remap' is in betta.lock, but no [Grasshopp
 so saved .gh files that use it will show it as missing. If it was renamed to 'Map', add FormerNames = new[] { "Remap" } to that method. …
 ```
 
-The build adds new components to the file, and adds nothing while a `BETTA012` stands, so a rename's new GUID can't slip in unnoticed. It never removes a line: delete one yourself for a component you removed on purpose, or never released. Make it an error with `<WarningsAsErrors>BETTA012</WarningsAsErrors>`, or turn it off with `<BettaLock>false</BettaLock>`.
+In Visual Studio the warning has a quick fix that adds the `FormerNames` entry, or pins the old `Guid`, for you. The build adds new components to the file, and adds nothing while a `BETTA012` stands, so a rename's new GUID can't slip in unnoticed. It never removes a line: delete one yourself for a component you removed on purpose, or never released. Make it an error with `<WarningsAsErrors>BETTA012</WarningsAsErrors>`, or turn it off with `<BettaLock>false</BettaLock>`. A plugin built without the generator can run the same check on its DLL with Betta.Mcp's `betta_check_lock`.
 
 Before 0.8 the GUID covered the whole signature, so any parameter change broke saved files, and a generic type in it (`List<T>`, a tuple, `Task<T>`) added assembly versions, so it also changed with plugin releases and Rhino updates. 0.8 registers that old GUID as a hidden alias: a 0.7 file still opens and takes the new GUID the next time it's saved (with a generic signature, only if it was saved with the same plugin, Rhino and .NET versions).
 

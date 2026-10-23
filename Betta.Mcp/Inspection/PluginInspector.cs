@@ -40,7 +40,8 @@ public sealed class PluginInspector : IDisposable
     private readonly string _pluginFolder;
     private readonly string _logFile;
 
-    public PluginInspector(string? pluginFolder = null, string? logFile = null)
+    /// <param name="extraFolders">More folders to resolve assemblies from, such as the build output of a plugin read by path.</param>
+    public PluginInspector(string? pluginFolder = null, string? logFile = null, IEnumerable<string>? extraFolders = null)
     {
         _pluginFolder = pluginFolder ?? Paths.PluginFolder;
         _logFile = logFile ?? Paths.LogFile;
@@ -53,6 +54,9 @@ public sealed class PluginInspector : IDisposable
         var probe = new List<string>();
         if (Directory.Exists(_pluginFolder))
             probe.AddRange(Directory.GetFiles(_pluginFolder, "*.dll"));
+        foreach (var folder in extraFolders ?? Enumerable.Empty<string>())
+            if (Directory.Exists(folder))
+                probe.AddRange(Directory.GetFiles(folder, "*.dll"));
 
         // Betta.Abstractions.dll lives in the Grasshopper Libraries root next
         // to Betta.gha (Betta's deploy target). Without it in the probe path
@@ -226,16 +230,12 @@ public sealed class PluginInspector : IDisposable
                     // ComponentRegistry uses [GrasshopperMethod(Guid = ...)] when set, so a pinned GUID wins here too.
                     d.GuidPinned = System.Guid.TryParse(NamedString(named, "Guid"), out var pinned);
 
-                    var overloaded = t.GetMethods().Count(o => o.Name == m.Name && TryGetMethodAttribute(o, out _)) > 1;
+                    var overloaded = IsOverloaded(t, m);
                     try
                     {
-                        if (d.GuidPinned)
+                        d.Guid = PublishedGuid(t, m, named, overloaded).ToString();
+                        if (!d.GuidPinned)
                         {
-                            d.Guid = pinned.ToString();
-                        }
-                        else
-                        {
-                            d.Guid = (overloaded ? SignatureGuid(t, m, StableTypeName) : Md5Guid($"{StableTypeName(t)}|{m.Name}")).ToString();
                             var legacy = SignatureGuid(t, m, x => x.FullName).ToString();
                             if (legacy != d.Guid) d.LegacyGuid = legacy;
                         }
@@ -267,6 +267,64 @@ public sealed class PluginInspector : IDisposable
         }
         return null;
     }
+
+    /// <summary>
+    /// Every <c>[GrasshopperMethod]</c> in <paramref name="dllPath"/>, or in every plugin in the Betta
+    /// folder, as betta.lock sees it: the GUID Betta publishes, the FormerNames GUIDs, and the label
+    /// the build writes. A method whose signature names a type this server can't resolve is left
+    /// out and listed in <paramref name="errors"/>.
+    /// </summary>
+    internal List<Betta.Lock.LockComponent> LockComponents(string? dllPath, List<string> errors)
+    {
+        var dlls = dllPath != null
+            ? new[] { dllPath }
+            : Directory.Exists(_pluginFolder) ? Directory.GetFiles(_pluginFolder, "*.dll").Where(IsPluginCandidate).ToArray() : Array.Empty<string>();
+        var result = new List<Betta.Lock.LockComponent>();
+        foreach (var dll in dlls)
+        {
+            (List<Type> Interfaces, List<Type> Classes) collections;
+            try
+            {
+                collections = SelectCollectionTypes(_mlc.LoadFromAssemblyPath(dll));
+            }
+            catch (Exception ex) when (ex is FileLoadException or FileNotFoundException or BadImageFormatException or TypeLoadException)
+            {
+                errors.Add($"{Path.GetFileName(dll)}: {ex.Message}");
+                continue;
+            }
+
+            foreach (var t in collections.Interfaces.Concat(collections.Classes))
+            foreach (var m in t.GetMethods())
+            {
+                if (!TryGetMethodAttribute(m, out var attr)) continue;
+                var named = AttributeReader.NamedArguments(attr);
+                var overloaded = IsOverloaded(t, m);
+                try
+                {
+                    result.Add(new Betta.Lock.LockComponent(StableTypeName(t), m.Name, overloaded,
+                        m.GetParameters().Select(p => StableTypeName(p.ParameterType)).ToArray(),
+                        PublishedGuid(t, m, named, overloaded),
+                        FormerGuids(t, m, NamedStrings(named, "FormerNames"), ReadCollectionFormerNames(t), overloaded).ToList(),
+                        NamedBool(named, "Enabled") ?? true));
+                }
+                catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or TypeLoadException)
+                {
+                    errors.Add($"{t.FullName}.{m.Name}: couldn't resolve a type in its signature ({ex.Message}), so its GUID is unknown here.");
+                }
+            }
+        }
+        return result;
+    }
+
+    /// <summary>The GUID Betta publishes: <c>[GrasshopperMethod(Guid = …)]</c> when pinned, else derived as <c>ComponentDescriptor</c> does.</summary>
+    private static Guid PublishedGuid(Type t, MethodInfo m, IReadOnlyDictionary<string, object?> named, bool overloaded) =>
+        System.Guid.TryParse(NamedString(named, "Guid"), out var pinned) ? pinned
+        : overloaded ? SignatureGuid(t, m, StableTypeName)
+        : Md5Guid($"{StableTypeName(t)}|{m.Name}");
+
+    // Disabled methods count, as in ComponentDescriptor, so toggling Enabled changes no GUID.
+    private static bool IsOverloaded(Type t, MethodInfo m) =>
+        t.GetMethods().Count(o => o.Name == m.Name && TryGetMethodAttribute(o, out _)) > 1;
 
     /// <summary>
     /// True when the DLL references Betta.Abstractions, read from its metadata without loading it.

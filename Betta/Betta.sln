@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Betta.OpaqueDemo", "..\samp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Betta.Generators", "..\Betta.Generators\Betta.Generators.csproj", "{CD5D331A-C12B-414A-A55D-AB06005B29B4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Betta.Generators.CodeFixes", "..\Betta.Generators.CodeFixes\Betta.Generators.CodeFixes.csproj", "{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,18 @@ Global
 		{CD5D331A-C12B-414A-A55D-AB06005B29B4}.Release|x64.Build.0 = Release|Any CPU
 		{CD5D331A-C12B-414A-A55D-AB06005B29B4}.Release|x86.ActiveCfg = Release|Any CPU
 		{CD5D331A-C12B-414A-A55D-AB06005B29B4}.Release|x86.Build.0 = Release|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Debug|x64.Build.0 = Debug|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Debug|x86.Build.0 = Debug|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Release|x64.ActiveCfg = Release|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Release|x64.Build.0 = Release|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Release|x86.ActiveCfg = Release|Any CPU
+		{1325D961-4CC8-4D6B-91B9-B8DB30F1AC09}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

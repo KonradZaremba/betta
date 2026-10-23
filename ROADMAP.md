@@ -8,7 +8,7 @@ What's planned after the current release, roughly in priority order. Shipped wor
 - **Yak from CI** — build the `.yak` on the runner with the downloaded `yak.exe` and push it when a `YAK_TOKEN` secret is set, so one tag publishes to both nuget.org and the Rhino Package Manager.
 - **Runtime target** — Betta targets `net7.0-windows`, which Microsoft no longer supports. Move to the runtime current Rhino 8 ships, and lift the Grasshopper `[8.0, 8.27)` pin as Rhino 8 updates.
 - **Rhino 8 test fixtures** — re-save the `.gh` test fixtures (and `samples/betta_showcase.gh`) in Rhino 8.
-- **GUID lock, the rest** — `betta.lock` and `BETTA012` catch a forgotten `FormerNames` at build time. Left: a code fix that adds the `FormerNames` line the warning names, and the same check in Betta.Mcp (`betta_validate_signature` given the service type). Plugin authors get the lock only once `Betta.Generators` is on nuget.org (below).
+- **Betta.Generators on nuget.org** — plugin authors get `betta.lock`, its quick fix and the faster load only from the package; add it to `release.yml`.
 - **Feature showcase pipeline** — a private `betta-showcase` repo that regenerates an MP4 + GIF per feature on each release: an in-Rhino "Director" plugin drives Grasshopper from per-scene scripts, ffmpeg records the fixed-size Rhino window, gifski makes the GIFs, and Playwright checks the website embeds. Output feeds the README, website, nuget.org pages and Food4Rhino. Built, with four scenes scripted (hero, code vs canvas, named outputs, watch folder); the first recording waits on an in-Rhino spike at 200% display scaling.
 
 ## Later
@@ -18,6 +18,6 @@ What's planned after the current release, roughly in priority order. Shipped wor
 - **`IBettaModule` for plugins dropped in mid-session** — their services are created (constructor injection from the startup provider), but the provider is built once, so their own `IBettaModule` registrations wait for a Rhino restart.
 - **Canvas LoadLibrary component** — load a plugin DLL from the Grasshopper canvas.
 - **Settings panel** — a real UI for Betta's options.
-- **More packages on nuget.org** — `Betta.Generators` and `Betta.Docs` (dotnet tool).
+- **More packages on nuget.org** — `Betta.Docs` (dotnet tool).
 - **Betta.Mcp on the official MCP C# SDK** — replace the hand-rolled JSON-RPC layer once the SDK covers the 2026-07-28 revision.
 - **Pure-logic tests on CI** — about 50 tests (input coercion, enum inputs, param mapping) are tagged `Requires=Rhino` only because RhinoCommon/Grasshopper resolve from a Rhino install; loading them from the NuGet package on CI would bring them back.

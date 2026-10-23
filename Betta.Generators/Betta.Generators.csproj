@@ -29,7 +29,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Build order only: the quick fix ships in this package, but the generator never calls it. -->
+    <ProjectReference Include="..\Betta.Generators.CodeFixes\Betta.Generators.CodeFixes.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <!-- The BETTA012 quick fix, built by the reference below. -->
+    <None Include="..\Betta.Generators.CodeFixes\bin\$(Configuration)\netstandard2.0\Betta.Generators.CodeFixes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- betta.lock: wires the lock file in and appends new components after compile. -->
     <None Include="build\Betta.Generators.props" Pack="true" PackagePath="build" />
     <None Include="build\Betta.Generators.targets" Pack="true" PackagePath="build" />

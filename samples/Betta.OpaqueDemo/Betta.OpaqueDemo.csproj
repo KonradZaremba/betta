@@ -27,6 +27,9 @@
          Analyzer-only reference (no runtime dep on the netstandard2.0 dll). -->
     <ProjectReference Include="..\..\Betta.Generators\Betta.Generators.csproj"
       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- The BETTA012 quick fix, as the package ships it. -->
+    <ProjectReference Include="..\..\Betta.Generators.CodeFixes\Betta.Generators.CodeFixes.csproj"
+      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- What the Betta.Generators package imports on its own: betta.lock and BETTA012. -->

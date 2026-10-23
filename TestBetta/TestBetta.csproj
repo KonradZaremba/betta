@@ -39,11 +39,14 @@
     <!-- TestGeneratorStableGuids runs the source generator through Roslyn on a snippet
          and checks its compile-time GUIDs against the runtime's, without Rhino. -->
     <ProjectReference Include="..\Betta.Generators\Betta.Generators.csproj" />
+    <!-- TestGuidLockCodeFix applies the BETTA012 quick fix in an in-memory workspace. -->
+    <ProjectReference Include="..\Betta.Generators.CodeFixes\Betta.Generators.CodeFixes.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Same Roslyn version Betta.Generators builds against. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" />
   </ItemGroup>
   
   <ItemGroup>

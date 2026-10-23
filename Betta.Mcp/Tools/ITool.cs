@@ -46,5 +46,6 @@ public sealed class ToolRegistry
         _tools.Add(new BettaRecentLogsTool());
         _tools.Add(new BettaDescribeTool());
         _tools.Add(new BettaValidateSignatureTool());
+        _tools.Add(new BettaCheckLockTool());
     }
 }

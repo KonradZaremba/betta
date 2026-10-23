@@ -81,7 +81,7 @@ namespace Betta.Generators
             // betta.lock comes in as an AdditionalFiles item (Betta.Generators.targets adds it);
             // <BettaLock>false</BettaLock> turns the check off.
             var lockFiles = context.AdditionalTextsProvider
-                .Where(static f => string.Equals(System.IO.Path.GetFileName(f.Path), GuidLock.FileName, StringComparison.OrdinalIgnoreCase))
+                .Where(static f => string.Equals(System.IO.Path.GetFileName(f.Path), Betta.Lock.GuidLockCore.FileName, StringComparison.OrdinalIgnoreCase))
                 .Collect();
             var lockOff = context.AnalyzerConfigOptionsProvider
                 .Select(static (o, _) => o.GlobalOptions.TryGetValue("build_property.BettaLock", out var v) &&

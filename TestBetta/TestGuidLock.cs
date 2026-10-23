@@ -30,10 +30,10 @@ namespace TestBetta
     /// </summary>
     public class TestGuidLock
     {
-        private const string LockPath = @"C:\probe\betta.lock";
+        internal const string LockPath = @"C:\probe\betta.lock";
 
         // Usings inside the namespace, so two packs can share one file.
-        private static string Pack(string members, string collection = @"[GrasshopperCollection(""Probe"", ""Math"")]", string name = "IMathPack") => $@"
+        internal static string Pack(string members, string collection = @"[GrasshopperCollection(""Probe"", ""Math"")]", string name = "IMathPack") => $@"
 namespace LockProbe
 {{
     using System.Collections.Generic;
@@ -47,10 +47,10 @@ namespace LockProbe
     }}
 }}";
 
-        private const string Remap = @"[GrasshopperMethod(""Remap"")] double Remap(double value);";
-        private const string Clamp = @"[GrasshopperMethod(""Clamp"")] double Clamp(double value);";
+        internal const string Remap = @"[GrasshopperMethod(""Remap"")] double Remap(double value);";
+        internal const string Clamp = @"[GrasshopperMethod(""Clamp"")] double Clamp(double value);";
 
-        private sealed class Run
+        internal sealed class Run
         {
             public ImmutableArray<Diagnostic> Diagnostics { get; set; }
             public string Pending { get; set; }
@@ -65,7 +65,7 @@ namespace LockProbe
             public string Lock(string existing = "") => existing + string.Concat(Added.Select(l => l + "\n"));
         }
 
-        private static Run Generate(string source, string lockText = null, bool lockOff = false)
+        internal static Run Generate(string source, string lockText = null, bool lockOff = false)
         {
             var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
                 .Split(Path.PathSeparator)
@@ -86,7 +86,7 @@ namespace LockProbe
             return new Run { Diagnostics = diagnostics, Pending = pending, Output = output };
         }
 
-        private static Type Load(Compilation output, string typeName)
+        internal static Type Load(Compilation output, string typeName)
         {
             using var pe = new MemoryStream();
             var emit = output.Emit(pe);
@@ -94,7 +94,7 @@ namespace LockProbe
             return Assembly.Load(pe.ToArray()).GetType(typeName);
         }
 
-        private static Guid LockedGuid(string lockText, string label) =>
+        internal static Guid LockedGuid(string lockText, string label) =>
             Guid.Parse(lockText.Split('\n').Single(l => l.EndsWith(" " + label)).Substring(0, 36));
 
         [Fact]
@@ -331,7 +331,7 @@ namespace LockProbe
             throw new DirectoryNotFoundException("Betta.Generators/build not found above " + AppContext.BaseDirectory);
         }
 
-        private sealed class Text : AdditionalText
+        internal sealed class Text : AdditionalText
         {
             private readonly string _text;
             public Text(string path, string text) { Path = path; _text = text; }

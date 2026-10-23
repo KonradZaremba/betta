@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The IDE quick fix for BETTA012. Code fixes need Roslyn's Workspaces layer, which the command-line
+    compiler doesn't load, so they live apart from Betta.Generators; its package ships both DLLs under
+    analyzers/dotnet/cs.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Betta.Generators.CodeFixes</AssemblyName>
+    <RootNamespace>Betta.Generators.CodeFixes</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same Roslyn version as Betta.Generators. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

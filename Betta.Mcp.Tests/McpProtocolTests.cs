@@ -62,7 +62,7 @@ public class McpProtocolTests
             Assert.False(result.TryGetProperty("ttlMs", out _));
             Assert.False(result.TryGetProperty("cacheScope", out _));
         }
-        Assert.Equal(4, list.GetProperty("result").GetProperty("tools").GetArrayLength());
+        Assert.Equal(5, list.GetProperty("result").GetProperty("tools").GetArrayLength());
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class McpProtocolTests
         Assert.True(result.GetProperty("_meta").TryGetProperty("io.modelcontextprotocol/serverInfo", out _));
 
         var tools = result.GetProperty("tools").EnumerateArray().ToList();
-        Assert.Equal(4, tools.Count);
+        Assert.Equal(5, tools.Count);
         var names = tools.Select(t => t.GetProperty("name").GetString()!).ToList();
         Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal), names);
         foreach (var t in tools)

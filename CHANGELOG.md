@@ -37,6 +37,7 @@ Every component gets a new GUID once (see Changed). What that means for plugins 
 - Betta.Mcp decoded stdin with the Windows console code page instead of UTF-8, garbling any non-ASCII tool argument (paths, names).
 - Betta.Mcp's `betta_describe` reported the signature-derived GUID even for a component that pins one with `[GrasshopperMethod(Guid = …)]`. Betta publishes the pinned value, so a GUID copied from the tool could break saved `.gh` files.
 - The source generator's output failed to compile in three cases: a component method with no parameters (`CS0826`), a name or description holding a newline or tab, and a project on C# 7.3, the default for netstandard2.0 and net48, because of its `#nullable disable` line.
+- A service class split into partial declarations, with an attribute or base list on more than one part, had each component emitted twice by the source generator, and its warnings reported twice.
 - With the source generator, Betta ignored a pinned `[GrasshopperMethod(Guid = …)]` and always derived the GUID, breaking the way a ported `GH_Component` keeps its saved files working.
 - `betta_describe` failed for every component when the plugin folder also held dependency DLLs (System.Text.Json, Azure.*, …), and for any signature with a Rhino type inside a generic (`List<Curve>`), because RhinoCommon wasn't on its resolver path.
 - `betta_validate_signature` recognised geometry types only fully qualified: `Curve`, `Point3d`, `Brep` and the rest, as normally written, got a false note that they flow as untyped wires.

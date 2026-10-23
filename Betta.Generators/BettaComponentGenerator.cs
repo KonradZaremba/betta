@@ -89,22 +89,14 @@ namespace Betta.Generators
             context.RegisterSourceOutput(collected.Combine(lockFiles).Combine(lockOff), static (spc, input) =>
             {
                 var ((items, locks), lockOff) = input;
-                // Distinct by serviceTypeFullName to merge partial-class halves.
+                // Each part of a partial type yields a model of the whole (merged) symbol: keep the first.
+                // Never mutate a model, since Roslyn caches it for the next run.
                 var byType = new Dictionary<string, ServiceTypeModel>(StringComparer.Ordinal);
                 foreach (var item in items)
-                {
-                    if (item == null) continue;
-                    if (!byType.ContainsKey(item.FullName))
+                    if (item != null && !byType.ContainsKey(item.FullName))
                         byType[item.FullName] = item;
-                    else
-                    {
-                        // Merge methods from a partial-class half.
-                        var existing = byType[item.FullName];
-                        foreach (var m in item.Methods) existing.Methods.Add(m);
-                    }
-                }
 
-                foreach (var diag in items.SelectMany(i => i?.Diagnostics ?? Enumerable.Empty<Diagnostic>()))
+                foreach (var diag in byType.Values.SelectMany(i => i.Diagnostics))
                     spc.ReportDiagnostic(diag);
 
                 if (byType.Count == 0) return;

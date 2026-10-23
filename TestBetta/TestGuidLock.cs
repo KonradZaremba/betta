@@ -243,6 +243,35 @@ namespace LockProbe
             Assert.Null(off.Pending);
         }
 
+        [Fact]
+        public void A_partial_class_is_emitted_once_even_when_only_the_lock_changes()
+        {
+            // Both parts pass the generator's predicate: one has the attribute, both the base list.
+            const string part1 = @"namespace LockProbe { using Betta.Attributes; using Betta.Interfaces;
+                [GrasshopperCollection(""Probe"", ""Math"")] public partial class Pack : IBettaCollection
+                { [GrasshopperMethod(""Remap"")] public double Remap(double v) => v; } }";
+            const string part2 = @"namespace LockProbe { using Betta.Attributes; using Betta.Interfaces;
+                public partial class Pack : IBettaCollection
+                { [GrasshopperMethod(""Clamp"")] public double Clamp(double v) => v; } }";
+            var compilation = CSharpCompilation.Create("LockProbe_" + Guid.NewGuid().ToString("N"),
+                new[] { CSharpSyntaxTree.ParseText(part1), CSharpSyntaxTree.ParseText(part2) }, ProbeReferences(),
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+            var lockFile = new Text(LockPath, "");
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new BettaComponentGenerator().AsSourceGenerator() },
+                new AdditionalText[] { lockFile }, optionsProvider: new Options("true"));
+            driver = driver.RunGenerators(compilation);
+            Assert.Equal(1, Count(driver, "Clamp"));
+
+            // An edit to betta.lock alone re-runs the output on the models Roslyn cached.
+            driver = driver.ReplaceAdditionalText(lockFile, new Text(LockPath, "# edited\n")).RunGenerators(compilation);
+            Assert.Equal(1, Count(driver, "Clamp"));
+
+            static int Count(GeneratorDriver d, string method) =>
+                d.GetRunResult().Results.Single().GeneratedSources.Single(s => s.HintName == "BettaPluginBootstrap.g.cs")
+                    .SourceText.ToString().Split('\n').Count(l => l.Contains($"MethodName = \"{method}\""));
+        }
+
         /// <summary>
         /// The targets end to end: the first build writes betta.lock, a rename gets BETTA012 and adds
         /// nothing, and FormerNames clears the warning and adds the new name. Builds a throwaway

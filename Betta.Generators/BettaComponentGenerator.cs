@@ -558,7 +558,7 @@ namespace Betta.Generators
             sb.AppendLine("// Compile-time descriptor blueprints. The plugin DLL does not need");
             sb.AppendLine("// to reference Betta.gha — the runtime duck-types the blueprint shape");
             sb.AppendLine("// via property reflection in ComponentDescriptorBlueprint.ConvertToDescriptors.");
-            sb.AppendLine("#nullable disable");
+            // No #nullable directive: it needs C# 8, and generated code has nullable off anyway.
             sb.AppendLine("using System;");
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine();
@@ -618,7 +618,7 @@ namespace Betta.Generators
                     sb.AppendLine("            {");
                     sb.AppendLine($"                ServiceTypeName = {Literal(t.FullName)},");
                     sb.AppendLine($"                MethodName = {Literal(m.MethodName)},");
-                    sb.Append("                ParameterTypeNames = new[] { ");
+                    sb.Append("                ParameterTypeNames = new string[] { ");
                     sb.Append(string.Join(", ", m.Parameters.Select(p => Literal(p.TypeFullName))));
                     sb.AppendLine(" },");
                     sb.AppendLine($"                Name = {Literal(m.Name)},");
@@ -644,8 +644,8 @@ namespace Betta.Generators
 
         private static string Literal(string s)
         {
-            if (s == null) return "null";
-            return "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+            // Escapes newlines, tabs and other control characters too, which attribute strings can hold.
+            return s == null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(s, quote: true);
         }
 
         // ---- Models -------------------------------------------------------

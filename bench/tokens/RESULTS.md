@@ -4,7 +4,8 @@ A headless Claude Code agent (Claude Sonnet 5.5) makes the same change in fresh 
 
 | Run | What changed | Sessions | Report |
 |---|---|---|---|
-| **10 (latest)** — 2026-10-22 01:11 | New task `t8-rename` (rename "Remap" to "Map Range", in the toolbar and the C# method and class names) and `FormerNames`, which keeps saved files working through a rename; the guide says to use it. All 8 tasks, guide vs a **fresh** plain `GH_Component` baseline, plus t5 and t8 with Betta.Mcp. Betta.Abstractions `0.8.0-bench.2` | 8 tasks × 2 arms × 3 runs + 6 = 54, all build | [report](results/2026-10-22-0111/report.md) |
+| **11 (latest)** — 2026-10-27 14:26 | New task `t9-iterate`: five maintenance changes to the existing 8-component facade library from the use case, seeded into both scaffolds. Guide vs plain `GH_Component`, scored by `score-iterate.ps1`. Betta.Abstractions `0.8.0-bench.2` | 2 arms × 3 runs = 6, all build | [report](results/2026-10-27-1426/report.md) |
+| 10 — 2026-10-22 01:11 | New task `t8-rename` (rename "Remap" to "Map Range", in the toolbar and the C# method and class names) and `FormerNames`, which keeps saved files working through a rename; the guide says to use it. All 8 tasks, guide vs a **fresh** plain `GH_Component` baseline, plus t5 and t8 with Betta.Mcp. Betta.Abstractions `0.8.0-bench.2` | 8 tasks × 2 arms × 3 runs + 6 = 54, all build | [report](results/2026-10-22-0111/report.md) |
 | 9 — 2026-10-21 21:58 | Component GUIDs now come from the type and method name only, so changing parameters and outputs keeps them. The guide says so, and keeps "pin the current GUID before renaming or moving the method". All 7 tasks with the guide, plus t5 with Betta.Mcp. Betta.Abstractions `0.8.0-bench.1`. `vanilla` rows are copied from run 7 | 24 new + 21 reused, all build | [report](results/2026-10-21-2158/report.md) |
 | 8 — 2026-10-21 19:35 | Derived GUIDs no longer depend on assembly versions, so the guide drops "pin a GUID on components with generic signatures". It keeps "pin the current GUID before renaming a published component". All 7 tasks with the guide, plus t5 with Betta.Mcp. Betta.Abstractions `0.8.0-bench.1`. `vanilla` rows are copied from run 7 | 24 new + 21 reused, all build | [report](results/2026-10-21-1935/report.md) |
 | 7 — 2026-10-21 14:10 | Everything re-run fresh with the current guide, which adds "throw for errors, `IBettaReport` for warnings" and "pin a GUID on components with generic signatures". All 7 tasks, guide vs plain, plus t5 with Betta.Mcp. Betta.Abstractions `0.8.0-bench.1` | 7 tasks × 2 arms × 3 runs + 3 = 45, all build | [report](results/2026-10-21-1410/report.md) |
@@ -18,6 +19,25 @@ A headless Claude Code agent (Claude Sonnet 5.5) makes the same change in fresh 
 Context-cost calibration for the skill and Betta.Mcp: [results/calibration/calibration.md](results/calibration/calibration.md).
 
 **Use case (2026-10-22):** an 8-component facade panel library built from scratch from one brief, 3 times per setup, with a headless structure check and an Opus code review of every build. Betta with the guide, skill and Betta.Mcp: 0.54x the cost and 0.47x the code of hand-written `GH_Component`s, review score 27.3 against 24.7 of 30. Write-up and both libraries: [usecases/facade-panels](../../usecases/facade-panels/README.md); raw data: [results/usecase-facade](results/usecase-facade/report.md).
+
+## Run 11: changing an existing library costs half too
+
+The earlier maintenance tasks (t5 refactor, t8 rename) touch one small component. This one starts from the 8-component facade library the use case built, seeded into both scaffolds from `usecases/facade-panels` (`tasks/t9-iterate.seed`), and asks for five ordinary changes in one prompt: a new input on Panel Stats ("Min Area"), a new output on Planarity ("Max Deviation"), an error for a Tolerance of 0 or less in three components, Group Identical Panels running in the background with cancel and progress, and Classify Panels' output "Type" renamed to "Class". Saved files must keep working.
+
+| Median of 3 | Betta (guide) | Plain | Ratio |
+|---|---|---|---|
+| Cost | 0.141 | 0.286 | **0.49x** |
+| Output tokens | 4,250 | 11,779 | 0.36x |
+| Total tokens | 223k | 314k | 0.71x |
+| Turns | 15 | 18 | 0.83x |
+| Wall time | 47 s | 82 s | 0.58x |
+| Lines added | 39 | 155 | 0.25x |
+| Builds; new input, new output, rename and background task present; all 8 GUIDs kept | 3/3 | 3/3 | |
+
+- **Changing a library costs half, as building it did** (the use case: 0.54x). Both arms did the whole job in all six sessions. `score-iterate.ps1` checks what a headless load shows; reading the diffs, every session also added the three Tolerance errors (Betta: `throw`, which shows as an error with no outputs; plain: `AddRuntimeMessage` and `return`) and both cancel and progress.
+- **The background task is the difference.** With Betta the method returns `Task<…>`, takes a `CancellationToken` and an `IProgress<int>`, and wraps its loop in `Task.Run`. All three plain agents followed the project's Nest On Sheets component and rewrote Group Identical Panels around the same machinery: an input key, a result cache, a `CancellationTokenSource`, `Task.Run`, `RhinoApp.InvokeOnUiThread` and `ExpireSolution`, progress through `Message`, and cleanup in `RemovedFromDocument`.
+- **Output tokens move most** (0.36x), turns least (0.83x): both sides read the same library and make the same five decisions; the plain side writes three times as much to carry them out.
+- Six sessions cost $1.26 in all.
 
 ## Run 10: renames keep saved files too, against a fresh baseline
 

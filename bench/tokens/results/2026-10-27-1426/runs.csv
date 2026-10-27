@@ -1,0 +1,7 @@
+﻿"task","arm","run","exit_code","subtype","is_error","num_turns","duration_ms","total_cost_usd","models","input_tokens","cache_creation_input_tokens","cache_read_input_tokens","output_tokens","total_tokens","final_context_tokens","build_pass","build_errors","files_changed","added_lines","added_chars","added_est_tokens","guid","guid_kept"
+"t9-iterate","betta-guide","1","0","success","False","16","47099","0.1687494","claude-haiku-5-5;claude-sonnet-5-5","1464","22889","196545","5763","226661","52085","True","0","2","38","2711","678",,
+"t9-iterate","betta-guide","2","0","success","False","14","38597","0.13879029999999998","claude-haiku-5-5;claude-sonnet-5-5","1464","19747","197819","4014","223044","48943","True","0","2","39","2762","691",,
+"t9-iterate","betta-guide","3","0","success","False","15","113600","0.1405217","claude-haiku-5-5;claude-sonnet-5-5","1464","19608","197093","4250","222415","48804","True","0","2","39","2809","703",,
+"t9-iterate","vanilla","1","0","success","False","18","109540","0.3016542","claude-haiku-5-5;claude-sonnet-5-5","1468","35323","327283","12766","376840","64519","True","0","1","155","5220","1305",,
+"t9-iterate","vanilla","2","0","success","False","21","81596","0.285731","claude-haiku-5-5;claude-sonnet-5-5","1466","35366","265356","11779","313967","64562","True","0","1","154","5118","1280",,
+"t9-iterate","vanilla","3","0","success","False","15","48650","0.2268316","claude-haiku-5-5;claude-sonnet-5-5","1464","30134","203252","8609","243459","59330","True","0","1","155","5134","1284",,

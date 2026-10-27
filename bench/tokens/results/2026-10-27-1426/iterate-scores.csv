@@ -1,0 +1,7 @@
+﻿"run","arm","build_pass","cost_usd","turns","added_lines","guids_kept","min_area_input","max_deviation_output","type_renamed_class","group_runs_as_task","checks"
+"t9-iterate-betta-guide-1","betta-guide","True","0,169","16","38","8/8","True","True","True","True","4/4"
+"t9-iterate-betta-guide-2","betta-guide","True","0,139","14","39","8/8","True","True","True","True","4/4"
+"t9-iterate-betta-guide-3","betta-guide","True","0,141","15","39","8/8","True","True","True","True","4/4"
+"t9-iterate-vanilla-1","vanilla","True","0,302","18","155","8/8","True","True","True","True","4/4"
+"t9-iterate-vanilla-2","vanilla","True","0,286","21","154","8/8","True","True","True","True","4/4"
+"t9-iterate-vanilla-3","vanilla","True","0,227","15","155","8/8","True","True","True","True","4/4"

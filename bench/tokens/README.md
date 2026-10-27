@@ -37,6 +37,7 @@ Tasks (`tasks/`; prompt text is identical for every arm):
 | `t6-shelfpack` | add "Shelf Pack": about 100 lines of packing logic, list inputs, an error case and a warn-but-still-output case |
 | `t7-panels` | add "Panel Grid": surface panelling and flatness check, same error and warning cases |
 | `t8-rename` | rename the existing "Remap" to "Map Range", in the toolbar and in the C# method/class and type names |
+| `t9-iterate` | five maintenance changes to the 8-component facade library (seeded from `usecases/facade-panels`): a new input, a new output, Tolerance errors in three components, background grouping with cancel and progress, and an output renamed. Scored by `score-iterate.ps1` |
 
 Arms (`-Arms`, default `betta betta-noskill vanilla`; an unknown arm throws):
 

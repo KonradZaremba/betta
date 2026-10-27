@@ -21,6 +21,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Betta.Abstractions\Betta.Abstractions.csproj" />
+    <!-- Build order only: Betta never compiles against Betta.Preview (it detects
+         IBettaPreview by name), but ships Betta.Preview.dll in its payload, because
+         plugins reference it with ExcludeAssets="runtime". -->
+    <ProjectReference Include="..\Betta.Preview\Betta.Preview.csproj" ReferenceOutputAssembly="false" OutputItemType="BettaCompanionAssembly" />
   </ItemGroup>
 
   <ItemGroup>

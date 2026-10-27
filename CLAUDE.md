@@ -71,7 +71,7 @@ Grasshopper requires one `IGH_DocumentObject` type per toolbar entry, so most pl
 - [Goo/GH_BettaGoo.cs](Betta/Goo/GH_BettaGoo.cs) + [Goo/Param_BettaGoo.cs](Betta/Goo/Param_BettaGoo.cs) — generic IGH_Goo/IGH_Param pair for opaque domain values. Closed generics produce stable per-T ComponentGuids so `.gh` files round-trip across machines.
 
 **Preview (optional companion package)**:
-- [Betta.Preview/Interfaces/IBettaPreview.cs](Betta.Preview/Interfaces/IBettaPreview.cs) — opaque domain types that implement this draw in the Rhino viewport. Detected at discovery via interface-name string (`"Betta.Preview.IBettaPreview"`) — a deliberate exception to the no-string-type-checks rule — so the Betta runtime does NOT take a hard reference to the Betta.Preview package and plugins that don't need preview don't drag a transitive RhinoCommon ref through their consumers.
+- [Betta.Preview/Interfaces/IBettaPreview.cs](Betta.Preview/Interfaces/IBettaPreview.cs) — opaque domain types that implement this draw in the Rhino viewport. Detected at discovery via interface-name string (`"Betta.Preview.IBettaPreview"`) — a deliberate exception to the no-string-type-checks rule — so the Betta runtime does NOT take a hard reference to the Betta.Preview package and plugins that don't need preview don't drag a transitive RhinoCommon ref through their consumers. It still ships `Betta.Preview.dll` (plugins reference it with `ExcludeAssets="runtime"`): a build-order-only `ProjectReference` (`ReferenceOutputAssembly="false"`) feeds it into `BettaRuntimePayload`, and `PluginLoader.FindDependency` resolves `Betta.*` assemblies from Betta.gha's folder when the plugin folder has none.
 
 ### Project rules
 

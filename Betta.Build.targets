@@ -76,6 +76,8 @@
     <ItemGroup>
       <BettaRuntimePayload Include="$(TargetDir)$(AssemblyName).gha" />
       <BettaRuntimePayload Include="$(TargetDir)*.dll" Exclude="$(TargetDir)$(AssemblyName).dll" />
+      <!-- Betta.Preview.dll, from the build-order-only ProjectReference in Betta.csproj. -->
+      <BettaRuntimePayload Include="@(BettaCompanionAssembly)" />
     </ItemGroup>
   </Target>
 

@@ -62,6 +62,11 @@ namespace Betta.Services
         private readonly string _folder;
         private readonly ILogger<PluginLoader> _logger;
 
+        // The folder Betta.gha was loaded from, where the runtime ships the SDK assemblies
+        // plugins reference with ExcludeAssets="runtime" (Betta.Preview). Null when
+        // Grasshopper loads .gha files from memory (COFF loading).
+        private readonly string _runtimeFolder = Path.GetDirectoryName(typeof(PluginLoader).Assembly.Location);
+
         // Path → loaded Assembly. Mirrors what was previously here; kept so
         // ResolveSiblingDependency can short-circuit re-entrant probes.
         private readonly ConcurrentDictionary<string, Assembly> _loadedByPath = new(StringComparer.OrdinalIgnoreCase);
@@ -412,8 +417,8 @@ namespace Betta.Services
 
             if (_sharedByName.TryGetValue(simpleName, out var already)) return already;
 
-            var candidate = Path.Combine(_folder, simpleName + ".dll");
-            if (!File.Exists(candidate)) return null;
+            var candidate = FindDependency(simpleName, _folder, _runtimeFolder);
+            if (candidate == null) return null;
 
             // CRITICAL: resolve a plugin's companion dependency into the SHARED,
             // NON-collectible Default context — NOT a per-file collectible ALC (as
@@ -429,6 +434,23 @@ namespace Betta.Services
             // unrelated .gha files whose dependency merely shared a name with a DLL in this
             // folder. A Default-context dependency is safe to return to anyone.
             return LoadDependencyShared(candidate, simpleName);
+        }
+
+        /// <summary>
+        /// Where a plugin's dependency lives: next to the plugins in <paramref name="pluginFolder"/>,
+        /// else, for Betta's own SDK assemblies only, next to Betta.gha, which ships them. Kept to
+        /// <c>Betta.*</c> because this answers the process-wide resolve event: the other DLLs next to
+        /// Betta.gha (Microsoft.Extensions.*, System.Reflection.Metadata) are not ours to hand out.
+        /// </summary>
+        internal static string FindDependency(string simpleName, string pluginFolder, string runtimeFolder)
+        {
+            var candidate = Path.Combine(pluginFolder, simpleName + ".dll");
+            if (File.Exists(candidate)) return candidate;
+
+            if (string.IsNullOrEmpty(runtimeFolder) || !simpleName.StartsWith("Betta.", StringComparison.OrdinalIgnoreCase))
+                return null;
+            candidate = Path.Combine(runtimeFolder, simpleName + ".dll");
+            return File.Exists(candidate) ? candidate : null;
         }
 
         /// <summary>

@@ -30,6 +30,7 @@ Every component gets a new GUID once (see Changed). What that means for plugins 
 - Headless tests for the async result cache (livelock + memoization), plugin-vs-dependency classification, and template version drift.
 
 ### Fixed
+- **Plugins that use Betta.Preview load on a clean install.** They reference it with `ExcludeAssets="runtime"`, but the Yak package and drop-in zip didn't ship `Betta.Preview.dll`, so such a plugin only loaded where a dev build had copied it into `Libraries\Betta\`. Both now ship it next to `Betta.gha`, and Betta resolves it from there.
 - `dotnet new bettaplugin-*` templates referenced Betta.Abstractions/Betta.Preview `0.4.0`, which was never published, so scaffolded plugins failed to restore.
 - README listed tree inputs as unsupported; tree I/O has worked since the first release (0.3.1).
 - `betta_validate_signature` rejected valid signatures using features from 0.5–0.7 (streaming `IObservable<T>`, `ValueTask`, `CancellationToken`/`IProgress<T>`, `params` arrays, parameter attributes). It now matches the runtime.

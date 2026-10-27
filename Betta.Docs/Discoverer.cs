@@ -82,11 +82,11 @@ internal static class Discoverer
                     var enabled = NamedArg(attr, "Enabled") as bool? ?? true;
                     if (!enabled) continue;
 
-                    // Name: positional ctor arg 0 wins over named.
-                    var name = (string?)CtorArg(attr, 0) ?? (string?)NamedArg(attr, "Name") ?? method.Name;
-                    var nickName = (string?)NamedArg(attr, "NickName") ?? name;
-                    var description = (string?)CtorArg(attr, 1) ?? (string?)NamedArg(attr, "Description")
-                                      ?? xmlDocs.GetMethodSummary(method) ?? name;
+                    // Same as the runtime's attribute instance: ctor values first, named arguments on top.
+                    var args = AttrArgs.Read(attr);
+                    var name = args.Name ?? method.Name;
+                    var nickName = args.NickName ?? name;
+                    var description = args.Description ?? xmlDocs.GetMethodSummary(method) ?? name;
                     var category = (string?)NamedArg(attr, "Category") ?? defaultCategory;
                     var subCategory = (string?)NamedArg(attr, "SubCategory") ?? defaultSubCat;
                     var iconResource = (string?)NamedArg(attr, "IconResource");
@@ -149,10 +149,10 @@ internal static class Discoverer
     private static InputInfo BuildInput(ParameterInfo p, XmlDocReader xmlDocs)
     {
         var attr = GetCustomAttribute(p.GetCustomAttributesData(), GhParamAttrFullName);
-        var name = (string?)CtorArg(attr, 0) ?? (string?)NamedArg(attr, "Name") ?? p.Name ?? "Input";
-        var nick = (string?)NamedArg(attr, "NickName") ?? name;
-        var description = (string?)CtorArg(attr, 1) ?? (string?)NamedArg(attr, "Description")
-                          ?? xmlDocs.GetParamSummary(p) ?? name;
+        var args = AttrArgs.Read(attr);
+        var name = args.Name ?? p.Name ?? "Input";
+        var nick = args.NickName ?? name;
+        var description = args.Description ?? xmlDocs.GetParamSummary(p) ?? name;
         var optional = NamedArg(attr, "Optional") as bool? ?? false;
         var defaultVal = NamedArg(attr, "DefaultValue");
         var hasDefault = defaultVal is not null;
@@ -332,6 +332,40 @@ internal sealed class ToleratingResolver : MetadataAssemblyResolver
         try { return _inner.Resolve(context, name); }
         catch (FileNotFoundException) { return null; }
         catch (FileLoadException) { return null; }
+    }
+}
+
+/// <summary>
+/// What the runtime's attribute instance holds for Name, NickName, Description and Index. Constructor
+/// arguments are matched by the constructor's parameter names, since (name, description) and
+/// (name, nickName, description) differ in what the second argument means; named arguments are applied
+/// afterwards, as C# does, so they override the constructor.
+/// </summary>
+internal sealed record AttrArgs(string? Name, string? NickName, string? Description, int Index)
+{
+    public static AttrArgs Read(CustomAttributeData? attr)
+    {
+        if (attr is null) return new AttrArgs(null, null, null, 0);
+        string? name = null, nick = null, desc = null;
+        var index = 0;
+
+        void Set(string member, object? value)
+        {
+            switch (member)
+            {
+                case "name" or "Name": name = value as string; break;
+                case "nickName" or "NickName": nick = value as string; break;
+                case "description" or "Description": desc = value as string; break;
+                case "index" or "Index": if (value is int i) index = i; break;
+            }
+        }
+
+        var ctorParams = attr.Constructor.GetParameters();
+        for (int i = 0; i < attr.ConstructorArguments.Count && i < ctorParams.Length; i++)
+            Set(ctorParams[i].Name ?? "", attr.ConstructorArguments[i].Value);
+        foreach (var na in attr.NamedArguments)
+            Set(na.MemberName, na.TypedValue.Value);
+        return new AttrArgs(name, nick, desc, index);
     }
 }
 

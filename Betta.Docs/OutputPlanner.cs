@@ -48,7 +48,7 @@ internal static class OutputPlanner
             foreach (var a in method.ReturnParameter.GetCustomAttributesData())
                 if (a.AttributeType.FullName == GhOutputAttrFullName) attrs.Add(a);
 
-        CustomAttributeData? AttrFor(int index) => attrs.FirstOrDefault(a => GetNamedOrCtorIndex(a) == index);
+        CustomAttributeData? AttrFor(int index) => attrs.FirstOrDefault(a => AttrArgs.Read(a).Index == index);
 
         // Simple
         if (IsSimpleType(outputType))
@@ -57,7 +57,7 @@ internal static class OutputPlanner
             plans.Add(new OutputInfo(
                 NameOrDefault(a, "Output"),
                 NickOrDefault(a, "Out"),
-                DescOrDefault(a, "Method output"),
+                DescOrDefault(a, NameOrDefault(a, "Output")),
                 Discoverer.TypeDisplay(outputType),
                 IsList: false));
             return plans;
@@ -69,7 +69,7 @@ internal static class OutputPlanner
             plans.Add(new OutputInfo(
                 NameOrDefault(a, "Output"),
                 NickOrDefault(a, "Out"),
-                DescOrDefault(a, "Tree output"),
+                DescOrDefault(a, NameOrDefault(a, "Output")),
                 Discoverer.TypeDisplay(outputType),
                 IsList: false));
             return plans;
@@ -81,7 +81,7 @@ internal static class OutputPlanner
             plans.Add(new OutputInfo(
                 NameOrDefault(a, "Output"),
                 NickOrDefault(a, "Out"),
-                DescOrDefault(a, "Method output list"),
+                DescOrDefault(a, NameOrDefault(a, "Output")),
                 Discoverer.TypeDisplay(outputType.GetGenericArguments()[0]),
                 IsList: true));
             return plans;
@@ -96,9 +96,10 @@ internal static class OutputPlanner
             {
                 var a = AttrFor(i);
                 var elementName = (tupleNames is not null && i < tupleNames.Count) ? SplitWords(tupleNames[i]!) : null;
-                var name = (string?)CtorOrNamed(a, "Name", 0) ?? elementName ?? $"Output{i + 1}";
-                var nick = (string?)NamedOnly(a, "NickName") ?? (string?)CtorOrNamed(a, "Name", 0) ?? elementName ?? $"Out{i + 1}";
-                var desc = (string?)CtorOrNamed(a, "Description", 1) ?? $"Method output {i + 1}";
+                var args = AttrArgs.Read(a);
+                var name = args.Name ?? elementName ?? $"Output{i + 1}";
+                var nick = args.NickName ?? args.Name ?? elementName ?? $"Out{i + 1}";
+                var desc = args.Description ?? name;
                 // The runtime builds the param from the element type, and ToGhParam gives any
                 // IEnumerable list access, so (List<Curve> Outlines, ...) is a list output.
                 var isList = Discoverer.IsListAccess(tupleTypes[i]);
@@ -118,7 +119,7 @@ internal static class OutputPlanner
             plans.Add(new OutputInfo(
                 NameOrDefault(a, "Image"),
                 NickOrDefault(a, "Img"),
-                DescOrDefault(a, "Bitmap output"),
+                DescOrDefault(a, NameOrDefault(a, "Image")),
                 Discoverer.TypeDisplay(outputType),
                 IsList: false));
             return plans;
@@ -138,7 +139,7 @@ internal static class OutputPlanner
                     var isList = IsListType(prop.PropertyType);
                     var shown = isList ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                     plans.Add(new OutputInfo(
-                        SplitWords(prop.Name), SplitWords(prop.Name), $"Property: {prop.Name}",
+                        SplitWords(prop.Name), SplitWords(prop.Name), SplitWords(prop.Name),
                         Discoverer.TypeDisplay(shown), IsList: isList));
                 }
                 return plans;
@@ -151,7 +152,7 @@ internal static class OutputPlanner
             plans.Add(new OutputInfo(
                 NameOrDefault(a, "Output"),
                 NickOrDefault(a, "Out"),
-                DescOrDefault(a, "Method output"),
+                DescOrDefault(a, NameOrDefault(a, "Output")),
                 Discoverer.TypeDisplay(outputType),
                 IsList: false));
             return plans;
@@ -185,51 +186,21 @@ internal static class OutputPlanner
         return words.Length == 0 ? identifier : char.ToUpperInvariant(words[0]) + words.Substring(1);
     }
 
-    private static int GetNamedOrCtorIndex(CustomAttributeData a)
-    {
-        // The 4-arg ctor is (name, nickName, description, index=0). Index can
-        // also come via named arg. Default to 0.
-        foreach (var na in a.NamedArguments)
-            if (na.MemberName == "Index" && na.TypedValue.Value is int i) return i;
-        if (a.ConstructorArguments.Count >= 4 && a.ConstructorArguments[3].Value is int ii) return ii;
-        return 0;
-    }
-
+    // The attribute as the runtime sees it (ctor values, named arguments on top). With no
+    // description, the description is the output's own display name.
     private static string NameOrDefault(CustomAttributeData? a, string fallback) =>
-        (string?)CtorOrNamed(a, "Name", 0) ?? fallback;
+        AttrArgs.Read(a).Name ?? fallback;
 
     private static string NickOrDefault(CustomAttributeData? a, string fallback)
     {
-        var nick = NamedOnly(a, "NickName") as string;
-        if (!string.IsNullOrEmpty(nick)) return nick!;
-        var name = CtorOrNamed(a, "Name", 0) as string;
-        if (!string.IsNullOrEmpty(name)) return name!;
+        var args = AttrArgs.Read(a);
+        if (!string.IsNullOrEmpty(args.NickName)) return args.NickName!;
+        if (!string.IsNullOrEmpty(args.Name)) return args.Name!;
         return fallback;
     }
 
     private static string DescOrDefault(CustomAttributeData? a, string fallback) =>
-        (string?)CtorOrNamed(a, "Description", 1) ?? fallback;
-
-    private static object? CtorOrNamed(CustomAttributeData? a, string name, int ctorIndex)
-    {
-        if (a is null) return null;
-        if (a.ConstructorArguments.Count > ctorIndex)
-        {
-            var v = a.ConstructorArguments[ctorIndex].Value;
-            if (v is not null) return v;
-        }
-        foreach (var na in a.NamedArguments)
-            if (na.MemberName == name) return na.TypedValue.Value;
-        return null;
-    }
-
-    private static object? NamedOnly(CustomAttributeData? a, string name)
-    {
-        if (a is null) return null;
-        foreach (var na in a.NamedArguments)
-            if (na.MemberName == name) return na.TypedValue.Value;
-        return null;
-    }
+        AttrArgs.Read(a).Description ?? fallback;
 
     private static IList<string?>? ReadTupleElementNames(MethodInfo method)
     {

@@ -3,6 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using System.Globalization;
 using System.Reflection;
 using Betta.Attributes;
 using Betta.Docs;
@@ -61,6 +62,7 @@ public class DocsFixture : IBettaCollection
 
     [GrasshopperMethod("Array Counts", "Arrays are list access")]
     public List<int> ArrayCounts(IEnumerable<string> names, string[] tags) => new();
+[GrasshopperMethod("Attr Inputs", "Attribute constructor shapes")]    public double AttrInputs(        [GrasshopperParameter("Path", "P", "File path")] string path,        [GrasshopperParameter("Width", "Width in mm")] double width,        [GrasshopperParameter("Depth", "D", "Depth", NickName = "Dz", Description = "Named depth")] double depth,        [GrasshopperParameter(Name = "Named", NickName = "Nm")] double named,        [GrasshopperParameter("Tolerance", Optional = true, DefaultValue = 0.5)] double tolerance) => 0;    [GrasshopperMethod("Attr Outputs", "Output attribute shapes")]    [GrasshopperOutput("Total", "T", "Sum of all")]    [GrasshopperOutput("Mean", "The average", Index = 1)]    [GrasshopperOutput("Count", "C", "Item count", 2)]    public (double Sum, double Average, int N, int Unnamed) AttrOutputs() => default;    [GrasshopperMethod("Single Default Description", "One output, nothing described")]    public double SingleDefault() => 0;    [GrasshopperMethod("Single Described", "One output, described")]    [return: GrasshopperOutput("Result", "The result")]    public double SingleDescribed() => 0;
 }
 
 [GrasshopperOpaque]
@@ -280,6 +282,85 @@ public class DiscovererTests : IDisposable
 
         Assert.Equal("Image", o.Name);
         Assert.Equal("Img", o.NickName);
-        Assert.Equal("Bitmap output", o.Description);
+        Assert.Equal("Image", o.Description);
+    }
+
+    [Fact]
+    public void Reads_nickname_and_description_from_the_three_argument_parameter_ctor()
+    {
+        var i = Component("Attr Inputs").inputs[0];
+
+        Assert.Equal("Path", i.DisplayName);
+        Assert.Equal("P", i.NickName);
+        Assert.Equal("File path", i.Description);
+    }
+
+    [Fact]
+    public void Reads_the_description_from_the_two_argument_parameter_ctor()
+    {
+        var i = Component("Attr Inputs").inputs[1];
+
+        Assert.Equal("Width", i.DisplayName);
+        Assert.Equal("Width", i.NickName);
+        Assert.Equal("Width in mm", i.Description);
+    }
+
+    [Fact]
+    public void A_named_argument_overrides_the_constructor_value_and_named_only_works()
+    {
+        var c = Component("Attr Inputs");
+
+        Assert.Equal("Dz", c.inputs[2].NickName);
+        Assert.Equal("Named depth", c.inputs[2].Description);
+        Assert.Equal("Named", c.inputs[3].DisplayName);
+        Assert.Equal("Nm", c.inputs[3].NickName);
+    }
+
+    [Fact]
+    public void Reads_outputs_from_the_two_three_and_four_argument_ctors_and_named_index()
+    {
+        var c = Component("Attr Outputs");
+
+        Assert.Collection(c.outputs,
+            o => { Assert.Equal("Total", o.Name); Assert.Equal("T", o.NickName); Assert.Equal("Sum of all", o.Description); },
+            o => { Assert.Equal("Mean", o.Name); Assert.Equal("Mean", o.NickName); Assert.Equal("The average", o.Description); },
+            o => { Assert.Equal("Count", o.Name); Assert.Equal("C", o.NickName); Assert.Equal("Item count", o.Description); },
+            o => { Assert.Equal("Unnamed", o.Name); Assert.Equal("Unnamed", o.Description); });
+    }
+
+    [Fact]
+    public void An_undescribed_output_is_described_by_its_own_name()
+    {
+        var single = Assert.Single(Component("Single Default Description").outputs);
+        Assert.Equal("Output", single.Name);
+        Assert.Equal("Output", single.Description);
+
+        var described = Assert.Single(Component("Single Described").outputs);
+        Assert.Equal("The result", described.Description);
+
+        // Tuple elements without an attribute: the split element name.
+        Assert.All(Component("Word Splitting").outputs, o => Assert.Equal(o.Name, o.Description));
+
+        // Exploded properties: the split property name.
+        var props = Component("Report Card").outputs;
+        Assert.Equal("Panel IDs", props[2].Description);
+        Assert.All(props, o => Assert.Equal(o.Name, o.Description));
+    }
+
+    [Fact]
+    public void Writes_default_values_with_the_invariant_culture()
+    {
+        var saved = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("pl-PL");
+            var outDir = Path.Combine(_root, "out");
+            MarkdownEmitter.Emit(new[] { Component("Attr Inputs") }, outDir);
+
+            var md = File.ReadAllText(Directory.GetFiles(outDir, "*.md").Single(f => Path.GetFileName(f) != "index.md"));
+            Assert.Contains("`0.5`", md);
+            Assert.DoesNotContain("0,5", md);
+        }
+        finally { CultureInfo.CurrentCulture = saved; }
     }
 }

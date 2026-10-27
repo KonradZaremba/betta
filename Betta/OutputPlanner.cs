@@ -75,7 +75,7 @@ namespace Betta
                 var a = AttrFor(0);
                 plans.Add(new OutputPlan(
                     a?.Name ?? "Output", a?.NickName ?? a?.Name ?? "Out",
-                    a?.Description ?? "Method output", outputType, false));
+                    a?.Description ?? a?.Name ?? "Output", outputType, false));
                 return plans;
             }
 
@@ -87,7 +87,7 @@ namespace Betta
                 var a = AttrFor(0);
                 plans.Add(new OutputPlan(
                     a?.Name ?? "Output", a?.NickName ?? a?.Name ?? "Out",
-                    a?.Description ?? "Tree output", outputType, false));
+                    a?.Description ?? a?.Name ?? "Output", outputType, false));
                 return plans;
             }
 
@@ -97,7 +97,7 @@ namespace Betta
                 var a = AttrFor(0);
                 plans.Add(new OutputPlan(
                     a?.Name ?? "Output", a?.NickName ?? a?.Name ?? "Out",
-                    a?.Description ?? "Method output list", outputType, true));
+                    a?.Description ?? a?.Name ?? "Output", outputType, true));
                 return plans;
             }
 
@@ -118,7 +118,7 @@ namespace Betta
                     var elementName = (tupleNames != null && i < tupleNames.Count) ? SplitWords(tupleNames[i]) : null;
                     var name = a?.Name ?? elementName ?? $"Output{i + 1}";
                     var nick = a?.NickName ?? a?.Name ?? elementName ?? $"Out{i + 1}";
-                    var desc = a?.Description ?? $"Method output {i + 1}";
+                    var desc = a?.Description ?? name;
                     plans.Add(new OutputPlan(name, nick, desc, tupleTypes[i], false));
                 }
                 return plans;
@@ -143,7 +143,7 @@ namespace Betta
                 var a = AttrFor(0);
                 plans.Add(new OutputPlan(
                     a?.Name ?? "Image", a?.NickName ?? a?.Name ?? "Img",
-                    a?.Description ?? "Bitmap output", outputType, false));
+                    a?.Description ?? a?.Name ?? "Image", outputType, false));
                 return plans;
             }
 
@@ -165,7 +165,7 @@ namespace Betta
                     bool isList = propType.IsGenericType &&
                                   propType.GetGenericTypeDefinition() == typeof(List<>);
                     var name = SplitWords(prop.Name);
-                    plans.Add(new OutputPlan(name, name, $"Property: {prop.Name}", propType, isList));
+                    plans.Add(new OutputPlan(name, name, name, propType, isList));
                 }
 
                 if (plans.Any())
@@ -176,7 +176,7 @@ namespace Betta
             var fb = AttrFor(0);
             plans.Add(new OutputPlan(
                 fb?.Name ?? "Output", fb?.NickName ?? fb?.Name ?? "Out",
-                fb?.Description ?? "Method output", outputType, false));
+                fb?.Description ?? fb?.Name ?? "Output", outputType, false));
             return plans;
         }
 

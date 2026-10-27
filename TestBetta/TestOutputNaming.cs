@@ -34,6 +34,8 @@ namespace TestBetta
         List<int> Listy(int count);
 
         Stats AsClass(List<double> n);
+
+        System.Drawing.Bitmap Picture(int size);
     }
 
     public class Stats
@@ -95,6 +97,57 @@ namespace TestBetta
             // [GrasshopperOutput] by Index wins over the (Min, Max) element names.
             Assert.Equal("Lo", plans[0].Name);
             Assert.Equal("Hi", plans[1].Name);
+        }
+
+        // With no description given, an output's tooltip is its own display name.
+        [Fact]
+        public void Description_single_output_defaults_to_its_name()
+        {
+            var plans = Plan(nameof(IOutputSamples.Plain));
+            Assert.Equal("Output", plans[0].Description);
+        }
+
+        [Fact]
+        public void Description_list_output_defaults_to_its_name()
+        {
+            var plans = Plan(nameof(IOutputSamples.Listy));
+            Assert.Equal("Output", plans[0].Description);
+        }
+
+        [Fact]
+        public void Description_unnamed_tuple_elements_default_to_their_names()
+        {
+            var plans = Plan(nameof(IOutputSamples.UnnamedTuple));
+            Assert.Equal(new[] { "Output1", "Output2" }, plans.Select(p => p.Description));
+        }
+
+        [Fact]
+        public void Description_named_tuple_elements_default_to_their_names()
+        {
+            var plans = Plan(nameof(IOutputSamples.MultiWordTuple));
+            Assert.Equal(new[] { "Flat", "FlatCount", "CSV Path" }, plans.Select(p => p.Description));
+        }
+
+        [Fact]
+        public void Description_class_property_defaults_to_split_words_name()
+        {
+            var plans = Plan(nameof(IOutputSamples.AsClass));
+            Assert.Equal(new[] { "Mean", "Count", "Total Area" }, plans.Select(p => p.Description));
+        }
+
+        [Fact]
+        public void Description_bitmap_output_defaults_to_its_name()
+        {
+            var plans = Plan(nameof(IOutputSamples.Picture));
+            Assert.Equal("Image", plans[0].Description);
+        }
+
+        [Fact]
+        public void Description_explicit_attribute_wins()
+        {
+            Assert.Equal("The remapped value", Plan(nameof(IOutputSamples.Named))[0].Description);
+            Assert.Equal(new[] { "Lower", "Upper" },
+                Plan(nameof(IOutputSamples.OverriddenTuple)).Select(p => p.Description));
         }
 
         [Fact]

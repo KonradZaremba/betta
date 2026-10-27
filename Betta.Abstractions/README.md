@@ -11,7 +11,7 @@ This package contains only the attributes and interfaces needed to author a Bett
 2. Reference `Betta.Abstractions` with `ExcludeAssets="runtime"` so your DLL doesn't redistribute a copy:
 
    ```xml
-   <PackageReference Include="Betta.Abstractions" Version="0.7.2.1"
+   <PackageReference Include="Betta.Abstractions" Version="0.8.0"
                      ExcludeAssets="runtime" />
    ```
 3. Define a service interface inheriting `IBettaCollection` and decorate it:

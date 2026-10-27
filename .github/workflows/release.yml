@@ -4,9 +4,9 @@ name: Release
 #   git tag v0.8.0 && git push origin v0.8.0
 #
 # Steps: build Release (which also produces the .yak + drop-in .zip via
-# BuildYak=true) -> pack Betta.Abstractions, Betta.Preview, Betta.Templates and
-# the Betta.Mcp dotnet tool and check the tag matches their version -> create a
-# GitHub Release with those artifacts -> push all four to nuget.org via Trusted Publishing -> push the
+# BuildYak=true) -> pack Betta.Abstractions, Betta.Preview, Betta.Generators,
+# Betta.Templates and the Betta.Mcp dotnet tool and check the tag matches their version -> create a
+# GitHub Release with those artifacts -> push all five to nuget.org via Trusted Publishing -> push the
 # package to Yak / Rhino Package Manager (only if a YAK_TOKEN secret is set).
 #
 # nuget.org Trusted Publishing needs a policy on nuget.org (username menu >
@@ -54,10 +54,11 @@ jobs:
         run: |
           dotnet pack Betta.Abstractions/Betta.Abstractions.csproj -c Release --no-build
           dotnet pack Betta.Preview/Betta.Preview.csproj -c Release --no-build
+          dotnet pack Betta.Generators/Betta.Generators.csproj -c Release
           dotnet pack templates/Betta.Templates/Betta.Templates.csproj -c Release
           dotnet pack Betta.Mcp/Betta.Mcp.csproj -c Release
           $version = "${{ github.ref_name }}".TrimStart('v')
-          $expected = 'Betta.Abstractions', 'Betta.Preview', 'Betta.Templates', 'Betta.Mcp' |
+          $expected = 'Betta.Abstractions', 'Betta.Preview', 'Betta.Generators', 'Betta.Templates', 'Betta.Mcp' |
                       ForEach-Object { "artifacts/$_.$version.nupkg" }
           $missing = @($expected | Where-Object { -not (Test-Path $_) })
           if ($missing) {
@@ -88,7 +89,7 @@ jobs:
           user: konradzaremba     # nuget.org profile name (public package owner), not an email
 
       # One wildcard push (the pattern NuGet/login documents) so the single
-      # short-lived key covers all four packages; .snupkg symbols ride along.
+      # short-lived key covers all five packages; .snupkg symbols ride along.
       - name: Publish NuGet packages to nuget.org
         shell: pwsh
         run: dotnet nuget push "artifacts/*.${{ steps.pack.outputs.version }}.nupkg" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

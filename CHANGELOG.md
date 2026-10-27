@@ -3,7 +3,7 @@
 All notable changes to Betta are documented here. Versions follow
 [SemVer](https://semver.org); the format follows [Keep a Changelog](https://keepachangelog.com).
 
-## [Unreleased]
+## [0.8.0] — 2026-10-27
 
 ### Upgrading from 0.7 (breaking)
 Every component gets a new GUID once (see Changed). What that means for plugins and their saved files:

@@ -90,9 +90,11 @@ jobs:
 
       # One wildcard push (the pattern NuGet/login documents) so the single
       # short-lived key covers all five packages; .snupkg symbols ride along.
+      # Backslash: on Windows NuGet expands the wildcard only in a \ path, and
+      # artifacts/*.nupkg fails with "File does not exist" (broke the v0.8.0 run).
       - name: Publish NuGet packages to nuget.org
         shell: pwsh
-        run: dotnet nuget push "artifacts/*.${{ steps.pack.outputs.version }}.nupkg" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "artifacts\*.${{ steps.pack.outputs.version }}.nupkg" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish to Yak (Rhino Package Manager)
         env:

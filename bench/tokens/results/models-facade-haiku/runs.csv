@@ -1,0 +1,7 @@
+﻿"task","arm","run","exit_code","subtype","is_error","num_turns","duration_ms","total_cost_usd","models","input_tokens","cache_creation_input_tokens","cache_read_input_tokens","output_tokens","total_tokens","final_context_tokens","build_pass","build_errors","files_changed","added_lines","added_chars","added_est_tokens","guid","guid_kept"
+"u1-facade","betta-guide-skill-mcp","1","0","success","False","31","182011","0.03991206","claude-haiku-5-5","2539","60044","1004636","35206","1102425","89568","True","0","9","652","25294","6324",,
+"u1-facade","betta-guide-skill-mcp","2","0","success","False","15","169942","0.03652557000000001","claude-haiku-5-5","2527","56777","632147","37192","728643","86444","True","0","5","599","22682","5671",,
+"u1-facade","betta-guide-skill-mcp","3","0","success","False","27","187387","0.043477190000000006","claude-haiku-5-5","2543","59514","1220959","38221","1321237","89181","True","0","9","596","22822","5706",,
+"u1-facade","vanilla","1","0","success","False","38","309856","0.11545754","claude-haiku-5-5","2555","83408","1618696","62970","1767629","113075","True","0","13","1078","39067","9767",,
+"u1-facade","vanilla","2","0","success","False","35","268514","0.07915341000000001","claude-haiku-5-5","2537","77473","935835","59190","1075035","107140","True","0","15","1051","39980","9995",,
+"u1-facade","vanilla","3","0","success","False","35","270183","0.09292137000000002","claude-haiku-5-5","2537","77091","962983","60264","1102875","106758","True","0","14","1065","40868","10217",,

@@ -1,0 +1,7 @@
+﻿"task","arm","run","exit_code","subtype","is_error","num_turns","duration_ms","total_cost_usd","models","input_tokens","cache_creation_input_tokens","cache_read_input_tokens","output_tokens","total_tokens","final_context_tokens","build_pass","build_errors","files_changed","added_lines","added_chars","added_est_tokens","guid","guid_kept"
+"t1-remap","betta-guide","1","0","success","False","11","42362","0.21186530000000003","claude-haiku-5-5;claude-opus-5-5","1314","12110","343571","2322","359317","41777","True","0","1","16","934","234",,
+"t1-remap","betta-guide","2","0","success","False","10","38937","0.2702235","claude-haiku-5-5;claude-opus-5-5","1312","20576","310962","2180","335030","50243","True","0","1","16","934","234",,
+"t1-remap","betta-guide","3","0","success","False","10","44098","0.28149290000000005","claude-haiku-5-5;claude-opus-5-5","1312","21266","320809","2369","345756","50933","True","0","1","17","987","247",,
+"t1-remap","betta-guide-mcp","1","0","success","False","8","30955","0.17387450000000002","claude-haiku-5-5;claude-opus-5-5","1308","11652","224857","1794","239611","41319","True","0","1","16","934","234",,
+"t1-remap","betta-guide-mcp","2","0","success","False","12","62670","0.2305191","claude-haiku-5-5;claude-opus-5-5","1314","13630","346740","2615","364299","43297","True","0","1","17","987","247",,
+"t1-remap","betta-guide-mcp","3","0","success","False","9","33698","0.1870637","claude-haiku-5-5;claude-opus-5-5","1310","11694","263683","2048","278735","41361","True","0","1","16","952","238",,

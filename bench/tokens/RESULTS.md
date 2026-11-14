@@ -36,7 +36,11 @@ Run 12 gave the whole library to three models. This run gives them the five task
 
 - **Less code on every model**, 0.47x to 0.64x, as with the library.
 - **Tokens go the other way from the library.** On the library, the stronger the model, the bigger the token saving (Opus 0.55x). One component at a time, Opus is the one that spends more on Betta: half again as many turns (45 against 30), most of it on t1, t2 and t7, where plain sessions finish in 5–6 turns and Betta sessions take 9–11. Each turn re-reads ~25–40k tokens of context, so extra turns outweigh the shorter code. Haiku is the reverse: its plain sessions are long (t3: 10 turns, 465k tokens, against 5 turns and 165k on Betta), and Betta saves a fifth.
-- **Why Opus takes the extra turns isn't recorded:** this run kept no transcripts (`-Trace`), and the final summaries describe the component, not the route. A traced re-run of t1 would show whether it's reading the package, checking the build, or something the guide could answer up front.
+- **Where Opus's extra turns go** (traced re-run of t1 on Opus, guide alone and guide + Betta.Mcp, 3 sessions each, [results/trace-opus-t1](results/trace-opus-t1/report.md), $1.36). Plain `GH_Component` takes 6 turns (155k tokens); Betta with the guide 10–11 (335k–359k). Three things add them:
+  1. **Looking up how to name the output (2–4 turns, every guide session).** The brief asks for an output called "Result"; the guide explains tuple names but not how to name a single return value, so Opus greps the package's XML docs in the NuGet cache (one session read an older `0.8.0-bench.2` copy). The answer, `[return: GrasshopperOutput("Result")]`, is one line.
+  2. **Two edits per component.** The template's pattern is an interface method plus its implementation (`IMyPack` and `MyPack`); the plain side writes one new file.
+  3. **Finding files twice (1 turn).** A shell listing, then a `Glob` for the same files.
+- **Betta.Mcp helps when it's used** (8, 9 and 12 turns): two of three sessions called `betta_validate_signature` instead of searching the docs (after a `ToolSearch` turn to load it); the third ignored it and searched anyway. The tool's answer was only `ok: true`: it doesn't show the inputs and outputs Betta will create or how to name them, so it settles less than it could.
 - Raw data: [results/models-oneby-haiku](results/models-oneby-haiku/report.md), [opus](results/models-oneby-opus/report.md). Sixty sessions cost $6.54 in all ($6.19 Opus, $0.35 Haiku).
 
 ## Run 12: the library on three models

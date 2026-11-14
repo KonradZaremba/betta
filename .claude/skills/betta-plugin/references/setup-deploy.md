@@ -6,8 +6,8 @@ Create a `net7.0-windows` class library and reference **`Betta.Abstractions`** (
 
 Package references (both on nuget.org; add `Betta.Preview` only if you need viewport preview, bake, or `BettaImage`):
 ```xml
-<PackageReference Include="Betta.Abstractions" Version="0.8.0" ExcludeAssets="runtime" />
-<PackageReference Include="Betta.Preview" Version="0.8.0" ExcludeAssets="runtime" />
+<PackageReference Include="Betta.Abstractions" Version="0.8.1" ExcludeAssets="runtime" />
+<PackageReference Include="Betta.Preview" Version="0.8.1" ExcludeAssets="runtime" />
 ```
 
 Project reference (working inside the Betta repo):

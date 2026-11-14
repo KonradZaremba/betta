@@ -3,7 +3,7 @@
 All notable changes to Betta are documented here. Versions follow
 [SemVer](https://semver.org); the format follows [Keep a Changelog](https://keepachangelog.com).
 
-## [Unreleased]
+## [0.8.1] — 2026-11-14
 
 ### Changed
 - **`betta_validate_signature` previews the component.** Its answer now includes `component` (each input and output with the name Betta gives it, item/list/tree access, and where the name comes from) and `hints` (the attribute to write when a name is only a default). Names written in the signature's attributes (`[GrasshopperParameter("…")]`, `[return: GrasshopperOutput("…")]`) are used instead of being stripped.

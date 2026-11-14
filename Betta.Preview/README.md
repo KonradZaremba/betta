@@ -10,8 +10,8 @@ Implement `IBettaPreview` on an opaque domain type and Betta draws it in the Rhi
 Reference it next to `Betta.Abstractions`, both with `ExcludeAssets="runtime"` (the Betta runtime ships them):
 
 ```xml
-<PackageReference Include="Betta.Abstractions" Version="0.8.0" ExcludeAssets="runtime" />
-<PackageReference Include="Betta.Preview" Version="0.8.0" ExcludeAssets="runtime" />
+<PackageReference Include="Betta.Abstractions" Version="0.8.1" ExcludeAssets="runtime" />
+<PackageReference Include="Betta.Preview" Version="0.8.1" ExcludeAssets="runtime" />
 ```
 
 Or scaffold a ready-made project: `dotnet new install Betta.Templates`, then `dotnet new bettaplugin-opaque-preview -n MyPlugin`.

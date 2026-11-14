@@ -1,7 +1,7 @@
 name: Release
 
 # Fires when a version tag is pushed:
-#   git tag v0.8.0 && git push origin v0.8.0
+#   git tag v0.8.1 && git push origin v0.8.1
 #
 # Steps: build Release (which also produces the .yak + drop-in .zip via
 # BuildYak=true) -> pack Betta.Abstractions, Betta.Preview, Betta.Generators,

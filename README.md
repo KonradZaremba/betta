@@ -100,6 +100,8 @@ Sure, an LLM can author a full `GH_Component` from scratch — and it usually do
 
 For a whole library, see the [facade panels use case](usecases/facade-panels/README.md): eight components from one brief, with a typed panel object, background nesting and file output, vibe-coded from an empty project both ways. With Betta it took about half the cost (0.54x) and half the code (0.47x), and scored better in code review. Both libraries are in the repo.
 
+For an existing plugin, see the [PDF+ port](usecases/pdfplus-port/README.md): David Mans' 48 hand-written PDF+ components moved onto Betta, with the PDF engine unchanged and saved files still opening. The component code went from 5,709 lines to 1,597 (0.28x); an agent ported 45 of the 48 in one session for $2.15, and 12 tests check that the port matches the original and writes real PDFs.
+
 **Betta.Mcp** is for when something goes wrong, or before you change a published plugin. It gives any MCP client (Claude Code, Claude Desktop, Cursor) live answers:
 - why a saved file shows missing components;
 - which GUIDs a component has had, to pin one or list a former name;

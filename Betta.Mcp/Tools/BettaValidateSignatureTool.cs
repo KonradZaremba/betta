@@ -40,12 +40,12 @@ namespace Betta.Mcp.Tools;
 ///     class returns explode into property outputs (or a single generic output).</item>
 /// </list>
 /// </summary>
-public sealed class BettaValidateSignatureTool : ITool
+public sealed partial class BettaValidateSignatureTool : ITool
 {
     public string Name => "betta_validate_signature";
-    public string Title => "Validate Betta method signature";
+    public string Title => "Preview the component a Betta method becomes";
     public string Description =>
-        "Heuristically check whether a method signature (e.g. \"double Cube(double x)\") would be accepted by Betta's runtime, including async/streaming returns, tuples of any arity, arrays/params, CancellationToken/IProgress<T>/IBettaReport and [GrasshopperSecret/Trigger/MenuState] parameters. Returns ok=true/false, a list of problems, and notes where the runtime accepts but degrades a type (unknown class -> property outputs, unknown parameter -> generic object).";
+        "Before writing or changing a [GrasshopperMethod], pass its planned signature, attributes included (e.g. \"[return: GrasshopperOutput(\\\"Result\\\")] double Remap([GrasshopperParameter(\\\"Source Min\\\")] double sourceMin)\"). Returns the component Betta will create (each input and output with its name, item/list/tree access and where the name comes from), hints with the exact attribute to write when a name is only a default, ok=true/false with problems, and notes where the runtime accepts but degrades a type. Static string check: no build needed.";
 
     public object InputSchema => new
     {
@@ -138,9 +138,13 @@ public sealed class BettaValidateSignatureTool : ITool
                 problems.Add($"Parameter '{p.Name}' has type '{p.Type}' which cannot be a Betta input.");
         }
 
+        var component = BuildComponent(parsed, opaque, out var hints);
+
         return Task.FromResult<object>(new
         {
             ok = problems.Count == 0,
+            component,
+            hints,
             parsed = new { returnType = parsed.ReturnType, name = parsed.MethodName, parameters = parsed.Parameters },
             problems,
             notes,
@@ -154,6 +158,8 @@ public sealed class BettaValidateSignatureTool : ITool
         public string ReturnType { get; set; } = string.Empty;
         public string MethodName { get; set; } = string.Empty;
         public List<ParsedParam> Parameters { get; set; } = new();
+        /// <summary>[GrasshopperOutput] on the method or its return value, in source order.</summary>
+        public List<OutputAttribute> OutputAttributes { get; } = new();
     }
     private sealed class ParsedParam
     {
@@ -162,14 +168,19 @@ public sealed class BettaValidateSignatureTool : ITool
         /// <summary>False when the runtime injects this parameter instead of exposing an input pin.</summary>
         public bool Wired { get; set; } = true;
         public List<string>? Attributes { get; set; }
+        /// <summary>The name from [GrasshopperParameter("…")], when the signature has one.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string? DisplayName { get; set; }
     }
 
     private static ParsedSignature? TryParse(string raw, List<string> problems)
     {
         var s = raw.Trim();
         // Method-level attributes (`[GrasshopperMethod("x")]`, `[return: ...]`) are not
-        // needed for acceptance; drop them so the rest parses as a bare signature.
-        s = StripLeadingAttributes(s, out _);
+        // needed for acceptance; drop them so the rest parses as a bare signature, keeping
+        // [GrasshopperOutput] for the output names.
+        var methodAttributes = new List<ParsedAttribute>();
+        s = StripLeadingAttributes(s, out _, methodAttributes);
 
         // Strip common access modifiers and return-keyword adornments so the
         // user can paste `public static double Cube(double x)` and have it
@@ -218,7 +229,8 @@ public sealed class BettaValidateSignatureTool : ITool
         {
             foreach (var part in SplitOnTopLevelCommas(paramsRaw))
             {
-                var partTrim = StripLeadingAttributes(part.Trim(), out var attrs);
+                var paramAttributes = new List<ParsedAttribute>();
+                var partTrim = StripLeadingAttributes(part.Trim(), out var attrs, paramAttributes);
                 // strip parameter modifiers
                 bool again;
                 do
@@ -246,16 +258,20 @@ public sealed class BettaValidateSignatureTool : ITool
                     Name = p.Value.right,
                     Wired = !IsSyntheticType(type) && !attrs.Any(PinlessAttributes.Contains),
                     Attributes = attrs.Count == 0 ? null : attrs,
+                    DisplayName = AttributeName(paramAttributes.FirstOrDefault(a => a.Name == "GrasshopperParameter")?.Args),
                 });
             }
         }
 
-        return new ParsedSignature
+        var result = new ParsedSignature
         {
             ReturnType = returnType,
             MethodName = methodName,
             Parameters = paramList,
         };
+        foreach (var a in methodAttributes.Where(a => a.Name == "GrasshopperOutput" && a.Target is "" or "return"))
+            result.OutputAttributes.Add(new OutputAttribute(AttributeName(a.Args), AttributeIndex(a.Args)));
+        return result;
     }
 
     /// <summary>
@@ -263,7 +279,7 @@ public sealed class BettaValidateSignatureTool : ITool
     /// remainder; attribute names (without namespace / "Attribute" suffix) are
     /// collected. Brackets inside string literals are respected.
     /// </summary>
-    private static string StripLeadingAttributes(string s, out List<string> names)
+    private static string StripLeadingAttributes(string s, out List<string> names, List<ParsedAttribute>? details = null)
     {
         names = new List<string>();
         s = s.TrimStart();
@@ -288,19 +304,29 @@ public sealed class BettaValidateSignatureTool : ITool
 
             var body = s.Substring(1, end - 1).Trim();
             // `[return: Foo]` / `[param: Foo]` target prefix.
+            string target = string.Empty;
             int colon = body.IndexOf(':');
             int paren = body.IndexOf('(');
-            if (colon >= 0 && (paren < 0 || colon < paren)) body = body[(colon + 1)..].Trim();
+            if (colon >= 0 && (paren < 0 || colon < paren)) { target = body[..colon].Trim(); body = body[(colon + 1)..].Trim(); }
             foreach (var attr in SplitOnTopLevelCommas(body))
             {
                 var a = attr.Trim();
+                string args = string.Empty;
                 int p = a.IndexOf('(');
-                if (p >= 0) a = a[..p].Trim();
+                if (p >= 0)
+                {
+                    if (a.EndsWith(")", StringComparison.Ordinal)) args = a.Substring(p + 1, a.Length - p - 2);
+                    a = a[..p].Trim();
+                }
                 int dot = a.LastIndexOf('.');
                 if (dot >= 0) a = a[(dot + 1)..];
                 if (a.EndsWith("Attribute", StringComparison.Ordinal) && a.Length > "Attribute".Length)
                     a = a[..^"Attribute".Length];
-                if (a.Length > 0) names.Add(a);
+                if (a.Length > 0)
+                {
+                    names.Add(a);
+                    details?.Add(new ParsedAttribute(target, a, args));
+                }
             }
             s = s[(end + 1)..].TrimStart();
         }

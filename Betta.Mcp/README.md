@@ -38,10 +38,10 @@ skill cover that.
 | `betta_status` | `{}` | List of DLLs, each with `{file, size, mtime, isBettaPlugin, collectionCount, methodCount}`. |
 | `betta_recent_logs` | `{lines?: int}` (default 50) | The last N lines of `Betta.log`. |
 | `betta_describe` | `{name: string}` | The descriptor for a component by display name (case-insensitive), including `guidPinned`, `legacyGuid` (the pre-0.8 GUID when it differs), `formerGuids` (aliases from `FormerNames`) and `loggedGuids` (every GUID Betta.log recorded for it, oldest first). |
-| `betta_validate_signature` | `{signature: string, opaqueTypes?: string[]}` | Heuristic check of a method signature against what the Betta runtime accepts: `{ok, parsed, problems, notes}`. |
+| `betta_validate_signature` | `{signature: string, opaqueTypes?: string[]}` | Preview of the component a method signature becomes, attributes included, before it's written: `{ok, component, hints, parsed, problems, notes}`. `component` lists each input and output with its name, `item`/`list`/`tree` access and where the name comes from (`attribute`, `parameter name`, `tuple element`, `default`, `properties`); `hints` gives the attribute to write when a name is only a default, such as `[return: GrasshopperOutput("Result")]`. |
 | `betta_check_lock` | `{lockFile: string, dll?: string}` | The build's `BETTA012` check against a built plugin DLL (default: every plugin in the Betta folder): `gone` lists the components in `betta.lock` nothing answers to any more, each with a message and the `FormerNames` or `Guid` fix; `toAdd` lists the lines the build would append (the whole file, when there's no lock yet). Same rules as the source generator, so it also covers plugins built without it. |
 
-All four tools are read-only (`annotations.readOnlyHint: true`).
+All five tools are read-only (`annotations.readOnlyHint: true`).
 
 `betta_validate_signature` follows the runtime, which accepts almost any type
 and degrades what it does not know. `problems` therefore only lists signatures

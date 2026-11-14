@@ -54,8 +54,14 @@ public sealed class McpServer
     public static readonly IReadOnlyList<string> SupportedVersions =
         new[] { ModernVersion }.Concat(LegacyVersions).ToArray();
 
+    // Agent traces showed the cost of not saying when to use the tools: without this, agents searched the package's
+    // XML docs for 2-4 turns to learn how to name an output that betta_validate_signature could have shown them.
     private const string Instructions =
-        "Inspect a local Betta Grasshopper installation: loaded plugins, recent log lines, component descriptors, and method-signature validation.";
+        "Betta turns attributed C# methods into Grasshopper components. Before you write or change a [GrasshopperMethod], " +
+        "call betta_validate_signature with the planned signature, attributes included: it shows the inputs and outputs " +
+        "Betta will create, their names, and the attribute to write to rename them, so there is no need to search the " +
+        "package docs. The other tools inspect a local installation: loaded plugins (betta_status), recent log lines " +
+        "(betta_recent_logs), component descriptors and GUIDs (betta_describe), and betta.lock (betta_check_lock).";
 
     private readonly ToolRegistry _tools;
     private readonly ResourceRegistry _resources;

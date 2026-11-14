@@ -3,6 +3,13 @@
 All notable changes to Betta are documented here. Versions follow
 [SemVer](https://semver.org); the format follows [Keep a Changelog](https://keepachangelog.com).
 
+## [Unreleased]
+
+### Changed
+- **`betta_validate_signature` previews the component.** Its answer now includes `component` (each input and output with the name Betta gives it, item/list/tree access, and where the name comes from) and `hints` (the attribute to write when a name is only a default). Names written in the signature's attributes (`[GrasshopperParameter("…")]`, `[return: GrasshopperOutput("…")]`) are used instead of being stripped.
+- **Betta.Mcp's instructions say when to use it:** check a planned signature with `betta_validate_signature` before writing or changing a component.
+- **The templates' agent guide says how to name a single output** (`[return: GrasshopperOutput("Result")]`). Traced Opus sessions spent 2–4 turns finding this in the package docs.
+
 ## [0.8.0] — 2026-10-27
 
 ### Upgrading from 0.7 (breaking)

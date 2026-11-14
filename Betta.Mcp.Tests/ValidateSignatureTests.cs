@@ -150,4 +150,106 @@ public class ValidateSignatureTests
     {
         await Assert.ThrowsAsync<ArgumentException>(() => new BettaValidateSignatureTool().InvokeAsync(null));
     }
+
+    // --- component preview: the inputs and outputs Betta creates, and how to name them ---
+
+    private static (string Name, string Access, string NameFrom)[] Pins(JsonElement r, string kind) =>
+        r.GetProperty("component").GetProperty(kind).EnumerateArray()
+            .Select(p => (p.GetProperty("name").GetString()!, p.GetProperty("access").GetString()!, p.GetProperty("nameFrom").GetString()!))
+            .ToArray();
+
+    [Fact]
+    public async Task Bare_signature_previews_default_names_and_says_how_to_change_them()
+    {
+        var r = await Validate("double Remap(double value, double sourceMin, double sourceMax, double targetMin, double targetMax)");
+
+        Assert.Equal(new[] { "value", "sourceMin", "sourceMax", "targetMin", "targetMax" }, Pins(r, "inputs").Select(p => p.Name));
+        Assert.All(Pins(r, "inputs"), p => Assert.Equal("parameter name", p.NameFrom));
+        Assert.Equal(new[] { ("Output", "item", "default") }, Pins(r, "outputs"));
+
+        var hints = Strings(r.GetProperty("hints"));
+        Assert.Contains(hints, h => h.Contains("[return: GrasshopperOutput(\"Result\")]"));
+        Assert.Contains(hints, h => h.Contains("[GrasshopperParameter(\"Source Min\")] double sourceMin"));
+    }
+
+    [Fact]
+    public async Task Attribute_names_from_the_signature_are_used()
+    {
+        var r = await Validate(
+            "[GrasshopperMethod(\"Remap\")]\n[return: GrasshopperOutput(\"Result\")]\npublic double Remap(" +
+            "[GrasshopperParameter(\"Value\", DefaultValue = 0.5)] double value, [GrasshopperParameter(Name = \"Source Min\")] double sourceMin)");
+
+        Assert.Equal(new[] { ("Value", "item", "attribute"), ("Source Min", "item", "attribute") }, Pins(r, "inputs"));
+        Assert.Equal(new[] { ("Result", "item", "attribute") }, Pins(r, "outputs"));
+        Assert.Empty(Strings(r.GetProperty("hints")));
+    }
+
+    [Fact]
+    public async Task Method_target_output_attribute_names_the_output_too()
+    {
+        var r = await Validate("[GrasshopperOutput(\"Result\")] double Cube(double x)");
+        Assert.Equal("Result", Pins(r, "outputs").Single().Name);
+    }
+
+    [Fact]
+    public async Task Named_tuple_elements_become_outputs_split_into_words()
+    {
+        // The runtime's own SplitWords examples (OutputPlanner): these must read the same here.
+        var r = await Validate("(int FlatCount, string CSVPath, int UCount, List<int> IDs, double sum) Stats(List<double> values)");
+
+        Assert.Equal(new[] { "Flat Count", "CSV Path", "U Count", "IDs", "Sum" }, Pins(r, "outputs").Select(p => p.Name));
+        Assert.All(Pins(r, "outputs"), p => Assert.Equal("tuple element", p.NameFrom));
+        Assert.Equal("list", Pins(r, "outputs")[3].Access);
+        Assert.Equal(new[] { ("values", "list", "parameter name") }, Pins(r, "inputs"));
+    }
+
+    [Fact]
+    public async Task Unnamed_tuple_takes_indexed_attributes_and_defaults_for_the_rest()
+    {
+        var r = await Validate("[return: GrasshopperOutput(\"Sum\", Index = 0)] ValueTuple<double, double> SumAndMean(double[] xs)");
+
+        Assert.Equal(new[] { ("Sum", "item", "attribute"), ("Output2", "item", "default") }, Pins(r, "outputs"));
+        Assert.Equal("list", Pins(r, "inputs").Single().Access);
+        Assert.Contains(Strings(r.GetProperty("hints")), h => h.Contains("Output1..OutputN"));
+    }
+
+    [Fact]
+    public async Task Async_return_unwraps_and_injected_parameters_get_no_input()
+    {
+        var r = await Validate("async Task<List<Point3d>> Divide(Curve curve, int count, CancellationToken ct, IProgress<double> progress, IBettaReport report)");
+
+        Assert.Equal(new[] { "curve", "count" }, Pins(r, "inputs").Select(p => p.Name));
+        Assert.Equal(new[] { ("Output", "list", "default") }, Pins(r, "outputs"));
+    }
+
+    [Theory]
+    [InlineData("void Log(string message)")]
+    [InlineData("Task Upload(string path)")]
+    public async Task No_return_value_means_no_outputs_and_no_output_hint(string signature)
+    {
+        var r = await Validate(signature);
+        Assert.Empty(Pins(r, "outputs"));
+        Assert.DoesNotContain(Strings(r.GetProperty("hints")), h => h.Contains("GrasshopperOutput"));
+    }
+
+    [Fact]
+    public async Task Unknown_class_return_previews_property_outputs()
+    {
+        var r = await Validate("PanelInfo Inspect(Brep panel)");
+        Assert.Equal(new[] { ("(one per public property of PanelInfo)", "item", "properties") }, Pins(r, "outputs"));
+    }
+
+    [Fact]
+    public async Task Opaque_class_return_is_one_output()
+    {
+        var r = await Validate("Panel Make(Brep b)", "Panel");
+        Assert.Equal(new[] { ("Output", "item", "default") }, Pins(r, "outputs"));
+    }
+
+    [Fact]
+    public async Task Tree_parameter_previews_tree_access()
+    {
+        var r = await Validate("int Count(GH_Structure<GH_Number> data)");
+        Assert.Equal("tree", Pins(r, "inputs").Single().Access);
+    }
 }

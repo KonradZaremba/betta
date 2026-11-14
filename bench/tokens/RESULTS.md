@@ -1,10 +1,11 @@
 # Token benchmark results
 
-A headless Claude Code agent (Claude Sonnet 5.5; run 12 also Haiku 5.5 and Opus 5.5) makes the same change in fresh projects, isolated from user settings. Every session's result is then built independently.
+A headless Claude Code agent (Claude Sonnet 5.5; runs 12 and 13 also Haiku 5.5 and Opus 5.5) makes the same change in fresh projects, isolated from user settings. Every session's result is then built independently.
 
 | Run | What changed | Sessions | Report |
 |---|---|---|---|
-| **12 (latest)** — 2026-11-13 19:39 | The use case's library brief (`u1-facade`) on **three models**: Haiku 5.5, Sonnet 5.5 and Opus 5.5, Betta (guide, skill and Betta.Mcp) vs plain `GH_Component`, against the published Betta.Abstractions `0.8.0`. Structure check only, no code review | 3 models × 2 arms × 3 runs = 18, all build | [haiku](results/models-facade-haiku/report.md), [sonnet](results/models-facade-sonnet/report.md), [opus](results/models-facade-opus/report.md) |
+| **13 (latest)** — 2026-11-14 10:42 | The five single-component tasks (t1, t2, t3, t6, t7) on **Haiku 5.5 and Opus 5.5**, the template's agent guide vs plain `GH_Component`, against the published Betta.Abstractions `0.8.0`. Sonnet comparison: run 10's rows | 2 models × 5 tasks × 2 arms × 3 runs = 60, all build | [haiku](results/models-oneby-haiku/report.md), [opus](results/models-oneby-opus/report.md) |
+| 12 — 2026-11-13 19:39 | The use case's library brief (`u1-facade`) on **three models**: Haiku 5.5, Sonnet 5.5 and Opus 5.5, Betta (guide, skill and Betta.Mcp) vs plain `GH_Component`, against the published Betta.Abstractions `0.8.0`. Structure check only, no code review | 3 models × 2 arms × 3 runs = 18, all build | [haiku](results/models-facade-haiku/report.md), [sonnet](results/models-facade-sonnet/report.md), [opus](results/models-facade-opus/report.md) |
 | 11 — 2026-10-27 14:26 | New task `t9-iterate`: five maintenance changes to the existing 8-component facade library from the use case, seeded into both scaffolds. Guide vs plain `GH_Component`, scored by `score-iterate.ps1`. Betta.Abstractions `0.8.0-bench.2` | 2 arms × 3 runs = 6, all build | [report](results/2026-10-27-1426/report.md) |
 | 10 — 2026-10-22 01:11 | New task `t8-rename` (rename "Remap" to "Map Range", in the toolbar and the C# method and class names) and `FormerNames`, which keeps saved files working through a rename; the guide says to use it. All 8 tasks, guide vs a **fresh** plain `GH_Component` baseline, plus t5 and t8 with Betta.Mcp. Betta.Abstractions `0.8.0-bench.2` | 8 tasks × 2 arms × 3 runs + 6 = 54, all build | [report](results/2026-10-22-0111/report.md) |
 | 9 — 2026-10-21 21:58 | Component GUIDs now come from the type and method name only, so changing parameters and outputs keeps them. The guide says so, and keeps "pin the current GUID before renaming or moving the method". All 7 tasks with the guide, plus t5 with Betta.Mcp. Betta.Abstractions `0.8.0-bench.1`. `vanilla` rows are copied from run 7 | 24 new + 21 reused, all build | [report](results/2026-10-21-2158/report.md) |
@@ -20,6 +21,23 @@ A headless Claude Code agent (Claude Sonnet 5.5; run 12 also Haiku 5.5 and Opus 
 Context-cost calibration for the skill and Betta.Mcp: [results/calibration/calibration.md](results/calibration/calibration.md).
 
 **Use case (2026-10-22):** an 8-component facade panel library built from scratch from one brief, 3 times per setup, with a headless structure check and an Opus code review of every build. Betta with the guide, skill and Betta.Mcp: 0.54x the cost and 0.47x the code of hand-written `GH_Component`s, review score 27.3 against 24.7 of 30. Write-up and both libraries: [usecases/facade-panels](../../usecases/facade-panels/README.md); raw data: [results/usecase-facade](results/usecase-facade/report.md).
+
+## Run 13: one component at a time, on three models
+
+Run 12 gave the whole library to three models. This run gives them the five tasks that each add one new component (t1 Remap, t2 Divide curve, t3 Async stats, t6 Shelf Pack, t7 Panel Grid), with the template's agent guide on the Betta side. Haiku and Opus are new; the Sonnet column is run 10's (Betta.Abstractions `0.8.0-bench.2`, the same API as `0.8.0`). All 60 new builds compile.
+
+| Five tasks, sums of medians, Betta ÷ plain | Haiku 5.5 | Sonnet 5.5 (run 10) | Opus 5.5 |
+|---|---|---|---|
+| Total tokens | **0.81x** (1.63M vs 2.01M) | 1.00x (824k vs 822k) | **1.63x** (1.49M vs 915k) |
+| Lines of code | 0.64x (416 vs 647) | 0.56x (296 vs 526) | 0.47x (296 vs 634) |
+| Output tokens | 0.77x (35.5k vs 45.9k) | 0.76x (10.6k vs 13.9k) | 0.83x (14.0k vs 16.9k) |
+| Turns | 47 vs 48 | 30 vs 32 | **45 vs 30** |
+| Cost | 0.87x ($0.054 vs $0.062) | 0.90x ($0.40 vs $0.44) | 1.08x ($1.06 vs $0.98) |
+
+- **Less code on every model**, 0.47x to 0.64x, as with the library.
+- **Tokens go the other way from the library.** On the library, the stronger the model, the bigger the token saving (Opus 0.55x). One component at a time, Opus is the one that spends more on Betta: half again as many turns (45 against 30), most of it on t1, t2 and t7, where plain sessions finish in 5–6 turns and Betta sessions take 9–11. Each turn re-reads ~25–40k tokens of context, so extra turns outweigh the shorter code. Haiku is the reverse: its plain sessions are long (t3: 10 turns, 465k tokens, against 5 turns and 165k on Betta), and Betta saves a fifth.
+- **Why Opus takes the extra turns isn't recorded:** this run kept no transcripts (`-Trace`), and the final summaries describe the component, not the route. A traced re-run of t1 would show whether it's reading the package, checking the build, or something the guide could answer up front.
+- Raw data: [results/models-oneby-haiku](results/models-oneby-haiku/report.md), [opus](results/models-oneby-opus/report.md). Sixty sessions cost $6.54 in all ($6.19 Opus, $0.35 Haiku).
 
 ## Run 12: the library on three models
 

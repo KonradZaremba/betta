@@ -1,0 +1,19 @@
+{
+    "date":  "2026-11-14 14:57",
+    "model":  "opus",
+    "runs":  3,
+    "max_turns":  40,
+    "max_budget_usd":  3,
+    "arms":  [
+                 "betta-guide",
+                 "betta-guide-mcp"
+             ],
+    "git_commit":  "b4b014b",
+    "dry_run":  false,
+    "extra_args":  [
+
+                   ],
+    "isolation_flags":  "--setting-sources project,local --strict-mcp-config --mcp-config \u003cempty\u003e --no-session-persistence --permission-mode acceptEdits --allowedTools Read Edit Write Glob Grep Bash(dotnet build:*) Bash(dotnet restore:*) PowerShell(dotnet build:*) PowerShell(dotnet restore:*) Bash(ls:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(grep:*) Bash(find:*)",
+    "abstractions_version":  "0.8.0",
+    "mcp_arm":  "arms ending in -mcp: --mcp-config with one stdio server \"betta\" (Betta.Mcp from this checkout, BETTA_PLUGIN_FOLDER = the task\u0027s published build) and mcp__betta + ToolSearch added to --allowedTools"
+}

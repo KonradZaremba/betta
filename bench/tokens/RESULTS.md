@@ -41,6 +41,10 @@ Run 12 gave the whole library to three models. This run gives them the five task
   2. **Two edits per component.** The template's pattern is an interface method plus its implementation (`IMyPack` and `MyPack`); the plain side writes one new file.
   3. **Finding files twice (1 turn).** A shell listing, then a `Glob` for the same files.
 - **Betta.Mcp helps when it's used** (8, 9 and 12 turns): two of three sessions called `betta_validate_signature` instead of searching the docs (after a `ToolSearch` turn to load it); the third ignored it and searched anyway. The tool's answer was only `ok: true`: it doesn't show the inputs and outputs Betta will create or how to name them, so it settles less than it could.
+- **After the fix** (the same trace again, [results/trace-opus-t1-after](results/trace-opus-t1-after/report.md), $0.92). The guide now says how to name a single output (`[return: GrasshopperOutput("Result")]`). `betta_validate_signature` now returns the component it previews: each input and output with its name, plus the attribute to write when a name is only a default. Betta.Mcp's instructions say to call it before writing a method.
+  - **Guide alone: 6 turns (5–7), 158k tokens**, down from 10–11 turns and 335k–359k. That matches plain `GH_Component` (6 turns, 155k). No session searched the docs. Each one found the files, read one, made the two edits and built.
+  - **Guide + Betta.Mcp: 8 turns (6–8), 241k.** Two sessions loaded the tool (`ToolSearch`), called it with the full signature, attributes included, and wrote what it previewed. The third skipped the tool and took 6 turns. Now that the guide answers the naming question, the tool's two turns are pure overhead on a component this small.
+  - Two edits per component (interface and class) remain. The run 13 table above is from before the fix.
 - Raw data: [results/models-oneby-haiku](results/models-oneby-haiku/report.md), [opus](results/models-oneby-opus/report.md). Sixty sessions cost $6.54 in all ($6.19 Opus, $0.35 Haiku).
 
 ## Run 12: the library on three models

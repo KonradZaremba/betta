@@ -123,6 +123,11 @@ namespace Betta.Services
             }
 
             _logger.LogInformation("Scanning {Folder} for plugins", _folder);
+            var strayAbstractions = Path.Combine(_folder, "Betta.Abstractions.dll");
+            if (File.Exists(strayAbstractions))
+                _logger.LogWarning(
+                    "{Path} is a copy of Betta's SDK; Betta uses its own from the Libraries folder. Remove it, and build plugins with ExcludeAssets=\"runtime\" on Betta.Abstractions.",
+                    strayAbstractions);
             foreach (var dll in Directory.EnumerateFiles(_folder, "*.dll"))
                 LoadOneForStartup(dll);
         }

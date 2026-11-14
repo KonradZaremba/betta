@@ -80,23 +80,30 @@ namespace Betta.Services
 
         private static bool ImplementsCollection(string path, string pluginFolder)
         {
-            var probe = new List<string>();
-            if (Directory.Exists(pluginFolder))
-                probe.AddRange(Directory.GetFiles(pluginFolder, "*.dll"));
+            // The probe path: the running .NET runtime dir (System.Private.CoreLib.dll etc.), the Grasshopper
+            // Libraries root (Betta.Abstractions.dll sits there next to Betta.gha, NOT in the plugin subfolder;
+            // without it MetadataLoadContext cannot resolve IBettaCollection), and the plugin folder.
+            //
+            // One file per assembly name. Two different files with the same name and version make
+            // MetadataLoadContext refuse the name (FileLoadException, which ToleratingResolver swallows), so
+            // IBettaCollection stopped resolving and every plugin read as a dependency. That happened when a
+            // plugin's build copied its own Betta.Abstractions.dll into the plugin folder. Keep the copy the
+            // process binds: the runtime's, then Betta's own folder (the Libraries root), then the plugin folder.
+            var probe = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [Path.GetFileNameWithoutExtension(path)] = path,
+            };
+            void Add(string folder)
+            {
+                if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
+                foreach (var file in Directory.GetFiles(folder, "*.dll"))
+                    probe.TryAdd(Path.GetFileNameWithoutExtension(file), file);
+            }
+            Add(System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory());
+            Add(Path.GetDirectoryName(pluginFolder));
+            Add(pluginFolder);
 
-            // Betta.Abstractions.dll sits in the Grasshopper Libraries root next to Betta.gha,
-            // NOT in the plugin subfolder. Without it on the probe path MetadataLoadContext
-            // cannot resolve IBettaCollection and every plugin is misclassified as a dependency.
-            var librariesRoot = Path.GetDirectoryName(pluginFolder);
-            if (!string.IsNullOrEmpty(librariesRoot) && Directory.Exists(librariesRoot))
-                probe.AddRange(Directory.GetFiles(librariesRoot, "*.dll"));
-
-            // The running .NET runtime dir (System.Private.CoreLib.dll etc.).
-            var runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
-            if (Directory.Exists(runtimeDir))
-                probe.AddRange(Directory.GetFiles(runtimeDir, "*.dll"));
-
-            var resolver = new ToleratingResolver(new PathAssemblyResolver(probe.Distinct()));
+            var resolver = new ToleratingResolver(new PathAssemblyResolver(probe.Values));
             using var mlc = new MetadataLoadContext(resolver, coreAssemblyName: "System.Private.CoreLib");
 
             var asm = mlc.LoadFromAssemblyPath(path);

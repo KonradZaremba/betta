@@ -10,6 +10,9 @@ All notable changes to Betta are documented here. Versions follow
 - **Betta.Mcp's instructions say when to use it:** check a planned signature with `betta_validate_signature` before writing or changing a component.
 - **The templates' agent guide says how to name a single output** (`[return: GrasshopperOutput("Result")]`). Traced Opus sessions spent 2–4 turns finding this in the package docs.
 
+### Fixed
+- **A stray `Betta.Abstractions.dll` in the plugin folder no longer hides every plugin.** When a plugin's build copied its own copy into `Libraries\Betta\`, the classifier saw two files with the same assembly name, could not resolve `IBettaCollection`, and skipped all plugins as "not a Betta plugin". It now keeps one file per assembly name (the runtime's, then Betta's own in the Libraries folder, then the plugin folder's), and the startup scan logs a warning about the stray copy.
+
 ## [0.8.0] — 2026-10-27
 
 ### Upgrading from 0.7 (breaking)
